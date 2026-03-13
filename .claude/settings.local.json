@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:crates.io)",
+      "WebFetch(domain:mymemory.translated.net)",
+      "WebFetch(domain:libretranslate.com)",
+      "Bash(ls -la /c/Personal/Rust/dev-tools/Cargo.lock 2>/dev/null; echo \"exit: $?\")",
+      "Bash(python3 -c \"\nimport os\npath = r'C:\\\\Personal\\\\Rust\\\\dev-tools\\\\static\\\\index.html'\nos.makedirs\\(os.path.dirname\\(path\\), exist_ok=True\\)\nwith open\\(path, 'w', encoding='utf-8'\\) as f:\n    f.write\\('<!DOCTYPE html>\\\\n<html lang=\\\\\"zh-CN\\\\\">\\\\n<head>\\\\n'\\)\n    f.write\\('    <meta charset=\\\\\"UTF-8\\\\\">\\\\n'\\)\n    f.write\\('    <meta name=\\\\\"viewport\\\\\" content=\\\\\"width=device-width, initial-scale=1.0\\\\\">\\\\n'\\)\n    f.write\\('    <title>Dev Tools</title>\\\\n'\\)\n    f.write\\('</head><body>test</body></html>\\\\n'\\)\nprint\\('Test write OK, size:', os.path.getsize\\(path\\)\\)\n\")",
+      "Bash(cd \"C:/Personal/Rust/dev-tools/static\" && python3 gen.py)",
+      "Bash(cd \"C:/Personal/Rust/dev-tools/static\" && python3 gen.py && python3 gen_js.py)",
+      "Bash(cd \"C:/Personal/Rust/dev-tools\" && cargo build 2>&1)",
+      "Read(//c/Users/zhangbl/.cargo/**)",
+      "Read(//c/Personal/Rust/dev-tools/$CARGO_HOME/**)",
+      "Bash(echo \"CARGO_HOME=$CARGO_HOME\")",
+      "Bash(ls \"C:/Users/zhangbl/.cargo/config\"* 2>/dev/null || echo \"none\")",
+      "Bash(cd \"C:/Personal/Rust/dev-tools\" && cargo test 2>&1)",
+      "Bash(cd \"C:/Personal/Rust/dev-tools\" && cargo test test_render_code_block -- --nocapture 2>&1 | head -30)",
+      "Bash(cd C:/Personal/Rust/dev-tools && cargo test 2>&1 | tail -30)",
+      "Bash(cd C:/Personal/Rust/dev-tools && cargo build --release 2>&1 | tail -10)",
+      "Bash(cd C:/Personal/Rust/dev-tools && cargo test 2>&1 | tail -40)",
+      "Bash(cd C:/Personal/Rust/dev-tools && cargo build --release 2>&1 | tail -5)",
+      "Bash(cd C:/Personal/Rust/dev-tools && cargo build --release 2>&1 | tail -3)",
+      "Bash(cargo test:*)",
+      "Bash(cargo run:*)",
+      "Bash(sleep 3 && curl -s -X POST http://localhost:3000/api/http/send -H \"Content-Type: application/json\" -d '{\"url\":\"https://httpbin.org/get\",\"method\":\"get\"}')",
+      "Bash(cargo build:*)"
+    ]
+  }
+}

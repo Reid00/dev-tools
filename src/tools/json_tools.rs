@@ -311,9 +311,18 @@ fn compare_values(v1: &Value, v2: &Value, path: &str, diffs: &mut Vec<String>) {
 
 // ── Handlers ───────────────────────────────────────────────────────
 
+/// Remove # comments from JSON input (lines starting with #)
+fn remove_json_comments(input: &str) -> String {
+    input
+        .lines()
+        .filter(|line| !line.trim().starts_with('#'))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 async fn format_json(Json(req): Json<FormatRequest>) -> Json<FormatResponse> {
-    let input = req.input.trim();
-    match serde_json::from_str::<Value>(input) {
+    let input = remove_json_comments(req.input.trim());
+    match serde_json::from_str::<Value>(&input) {
         Ok(val) => {
             let val = if req.sort_keys.unwrap_or(false) {
                 sort_value(&val)
@@ -356,7 +365,8 @@ async fn format_json(Json(req): Json<FormatRequest>) -> Json<FormatResponse> {
 }
 
 async fn validate_json(Json(req): Json<ValidateRequest>) -> Json<ValidateResponse> {
-    match serde_json::from_str::<Value>(&req.input) {
+    let input = remove_json_comments(&req.input);
+    match serde_json::from_str::<Value>(&input) {
         Ok(_) => Json(ValidateResponse {
             valid: true,
             error: None,
@@ -424,7 +434,8 @@ async fn compare_json(Json(req): Json<CompareRequest>) -> Json<CompareResponse> 
 
 async fn minify_json(Json(req): Json<MinifyRequest>) -> Json<MinifyResponse> {
     let original_size = req.input.len();
-    match serde_json::from_str::<Value>(&req.input) {
+    let input = remove_json_comments(&req.input);
+    match serde_json::from_str::<Value>(&input) {
         Ok(val) => {
             let result = serde_json::to_string(&val).unwrap_or_default();
             let minified_size = result.len();
@@ -919,5 +930,55 @@ mod tests {
         )
         .await;
         assert_eq!(json["result"], r#"{"a":1}"#);
+    }
+
+    // ── Handler: comment removal ───────────────────────────────
+
+    #[tokio::test]
+    async fn test_handler_format_with_comments() {
+        let input = r#"{
+    # This is a comment
+    "name": "test",
+    # Another comment
+    "value": 123
+}"#;
+        let (status, json) = post_json(
+            "/format",
+            serde_json::json!({"input": input}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(json["valid"].as_bool().unwrap());
+        assert!(json["result"].as_str().unwrap().contains("\"name\": \"test\""));
+        assert!(!json["result"].as_str().unwrap().contains("# This is a comment"));
+    }
+
+    #[tokio::test]
+    async fn test_handler_validate_with_comments() {
+        let input = r#"{
+    # Config file
+    "debug": true
+}"#;
+        let (_, json) = post_json(
+            "/validate",
+            serde_json::json!({"input": input}),
+        )
+        .await;
+        assert!(json["valid"].as_bool().unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_handler_minify_with_comments() {
+        let input = r#"{
+    # Comment to remove
+    "a": 1,
+    "b": 2
+}"#;
+        let (_, json) = post_json(
+            "/minify",
+            serde_json::json!({"input": input}),
+        )
+        .await;
+        assert_eq!(json["result"], r#"{"a":1,"b":2}"#);
     }
 }

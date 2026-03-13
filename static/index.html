@@ -67,7 +67,36 @@
         .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 2em 0; }
         #mobile-nav { scrollbar-width: none; }
         #mobile-nav::-webkit-scrollbar { display: none; }
-        .json-output-area { min-height: 300px; max-height: 600px; overflow: auto; }
+        .json-output-area { overflow: hidden; }
+        .json-code-container { display: flex; background: #1e1e1e; border-radius: 8px; overflow: hidden; height: 100%; }
+        .json-line-numbers {
+            flex-shrink: 0; padding: 12px 0; background: #252526; text-align: right;
+            user-select: none; border-right: 1px solid #404040; overflow-y: hidden;
+        }
+        .json-line-numbers .line-num {
+            padding: 0 12px; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+            font-size: 13px; line-height: 1.5; color: #858585;
+        }
+        .json-code-content { flex: 1; overflow: auto; }
+        .json-code-content pre { margin: 0; padding: 12px; }
+        .json-code-content code { font-size: 13px; line-height: 1.5; }
+        /* Input with line numbers */
+        .json-input-container { display: flex; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fafafa; }
+        .json-input-container:focus-within { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
+        .json-input-line-nums {
+            flex-shrink: 0; padding: 12px 0; background: #f1f5f9; text-align: right;
+            user-select: none; border-right: 1px solid #e5e7eb; overflow: hidden;
+        }
+        .json-input-line-nums .line-num {
+            padding: 0 12px; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+            font-size: 13px; line-height: 1.5; color: #94a3b8;
+        }
+        .json-input-line-nums .line-num.comment { color: #22c55e; }
+        .json-input-wrapper { flex: 1; display: flex; overflow: hidden; }
+        .json-input-wrapper textarea {
+            flex: 1; border: none; outline: none; resize: none; padding: 12px;
+            font-size: 13px; line-height: 1.5; background: #fafafa; overflow: auto;
+        }
     </style>
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col">
@@ -88,6 +117,7 @@
                 <button onclick="switchTool('pydict')" data-tool="pydict" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>Dict 转 JSON</button>
                 <button onclick="switchTool('translate')" data-tool="translate" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>翻译工具</button>
                 <button onclick="switchTool('markdown')" data-tool="markdown" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>Markdown 渲染</button>
+                <button onclick="switchTool('http')" data-tool="http" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>HTTP 请求</button>
             </nav>
             <div class="p-4 border-t border-slate-700 text-xs text-slate-500 text-center">Dev Tools v0.1.0</div>
         </aside>
@@ -98,6 +128,7 @@
             <button onclick="switchTool('pydict')" data-tool="pydict" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>Dict</button>
             <button onclick="switchTool('translate')" data-tool="translate" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>翻译</button>
             <button onclick="switchTool('markdown')" data-tool="markdown" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>MD</button>
+            <button onclick="switchTool('http')" data-tool="http" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>HTTP</button>
         </nav>
         <main class="flex-1 overflow-auto">
 
@@ -222,20 +253,48 @@
                             <option value="2">2 空格</option>
                             <option value="4" selected>4 空格</option>
                         </select>
+                        <label class="text-sm text-gray-500">高度:</label>
+                        <select id="json-height" onchange="setJsonHeight(this.value)" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            <option value="400">400px</option>
+                            <option value="500" selected>500px</option>
+                            <option value="600">600px</option>
+                            <option value="700">700px</option>
+                            <option value="800">800px</option>
+                        </select>
                     </div>
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
-                        <label class="text-sm font-medium text-gray-600 mb-2 block">输入 JSON</label>
-                        <textarea id="json-input" class="w-full h-96 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm bg-white resize-y" placeholder="在此粘贴 JSON..."></textarea>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-medium text-gray-600">输入 JSON <span class="text-gray-400 font-normal">(支持 # 注释)</span></label>
+                            <div class="flex gap-1">
+                                <button onclick="copyText(document.getElementById('json-input').value)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                                <button onclick="clearJsonInput()" class="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">清空</button>
+                            </div>
+                        </div>
+                        <div id="json-input-container" class="json-input-container" style="height:500px">
+                            <div id="json-input-line-nums" class="json-input-line-nums">
+                                <div class="line-num">1</div>
+                            </div>
+                            <div class="json-input-wrapper">
+                                <textarea id="json-input" placeholder="在此粘贴 JSON...&#10;支持 # 开头的注释行" oninput="updateJsonInputLineNums()" onscroll="syncJsonInputScroll()"></textarea>
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-sm font-medium text-gray-600">输出结果</label>
                             <button onclick="copyText(document.getElementById('json-output-text').textContent)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
                         </div>
-                        <div id="json-output" class="json-output-area w-full h-96 border border-gray-200 rounded-lg bg-gray-900 p-1 overflow-auto">
-                            <pre><code id="json-output-text" class="hljs language-json text-sm"></code></pre>
+                        <div id="json-output" class="json-output-area w-full border border-gray-200 rounded-lg overflow-hidden" style="height:500px">
+                            <div class="json-code-container h-full">
+                                <div id="json-line-numbers" class="json-line-numbers" style="display:none;">
+                                    <!-- Line numbers will be generated here -->
+                                </div>
+                                <div class="json-code-content">
+                                    <pre><code id="json-output-text" class="hljs language-json"></code></pre>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -257,23 +316,52 @@
                     Python Dict 转 JSON
                 </h2>
                 <p class="text-sm text-gray-500 mb-4">支持 True/False/None、单引号、元组、末尾逗号等 Python 语法</p>
+                <!-- Toolbar -->
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <button onclick="convertPyDict()" class="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">转换</button>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <label class="text-sm text-gray-500">高度:</label>
+                        <select id="pydict-height" onchange="setPydictHeight(this.value)" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            <option value="400">400px</option>
+                            <option value="500" selected>500px</option>
+                            <option value="600">600px</option>
+                            <option value="700">700px</option>
+                            <option value="800">800px</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     <div>
-                        <label class="text-sm font-medium text-gray-600 mb-2 block">Python Dict 输入</label>
-                        <textarea id="pydict-input" class="w-full h-80 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm bg-white resize-y" placeholder="{'name': 'test', 'valid': True, 'data': None}"></textarea>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-medium text-gray-600">Python Dict 输入</label>
+                            <div class="flex gap-1">
+                                <button onclick="copyText(document.getElementById('pydict-input').value)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                                <button onclick="clearPydictInput()" class="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">清空</button>
+                            </div>
+                        </div>
+                        <div id="pydict-input-container" class="json-input-container" style="height:500px">
+                            <div id="pydict-input-line-nums" class="json-input-line-nums">
+                                <div class="line-num">1</div>
+                            </div>
+                            <div class="json-input-wrapper">
+                                <textarea id="pydict-input" placeholder="{'name': 'test', 'valid': True, 'data': None}" oninput="updatePydictInputLineNums()" onscroll="syncPydictInputScroll()"></textarea>
+                            </div>
+                        </div>
                     </div>
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-sm font-medium text-gray-600">JSON 输出</label>
                             <button onclick="copyText(document.getElementById('pydict-output-text').textContent)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
                         </div>
-                        <div class="w-full h-80 border border-gray-200 rounded-lg bg-gray-900 p-1 overflow-auto">
-                            <pre><code id="pydict-output-text" class="hljs language-json text-sm"></code></pre>
+                        <div id="pydict-output" class="json-output-area w-full border border-gray-200 rounded-lg overflow-hidden" style="height:500px">
+                            <div class="json-code-container h-full">
+                                <div id="pydict-line-numbers" class="json-line-numbers" style="display:none;"></div>
+                                <div class="json-code-content">
+                                    <pre><code id="pydict-output-text" class="hljs language-json"></code></pre>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="mt-4 flex gap-2">
-                    <button onclick="convertPyDict()" class="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">转换</button>
                 </div>
                 <div id="pydict-error" class="mt-3 hidden text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg"></div>
             </div>
@@ -344,6 +432,167 @@
                         <label class="text-sm font-medium text-gray-600 mb-2 block">预览</label>
                         <div id="md-preview" class="markdown-body w-full border border-gray-200 rounded-lg bg-white p-5 overflow-auto" style="height:500px"></div>
                     </div>
+                </div>
+            </div>
+
+            <!-- ===== TOOL 6: HTTP Client ===== -->
+            <div id="tool-http" class="tool-panel p-6 max-w-7xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    HTTP 请求
+                </h2>
+
+                <!-- Request Bar -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 mb-4">
+                    <div class="flex flex-wrap gap-2 items-center">
+                        <select id="http-method" class="px-3 py-2 border border-gray-200 rounded-lg text-sm font-medium bg-gray-50 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="HEAD">HEAD</option>
+                            <option value="OPTIONS">OPTIONS</option>
+                            <option value="PATCH">PATCH</option>
+                        </select>
+                        <input id="http-url" type="text" placeholder="输入 URL (https://api.example.com/endpoint)" class="flex-1 min-w-64 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm">
+                        <button onclick="sendHttpRequest()" id="http-send-btn" class="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                            发送
+                        </button>
+                        <button onclick="clearHttpRequest()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">清空</button>
+                    </div>
+                </div>
+
+                <!-- Tabs -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-4">
+                    <div class="flex border-b border-gray-200">
+                        <button onclick="switchHttpTab('headers')" data-http-tab="headers" class="http-tab px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300 transition-colors">Headers</button>
+                        <button onclick="switchHttpTab('query')" data-http-tab="query" class="http-tab px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300 transition-colors">Query</button>
+                        <button onclick="switchHttpTab('body')" data-http-tab="body" class="http-tab px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300 transition-colors">Body</button>
+                        <button onclick="switchHttpTab('auth')" data-http-tab="auth" class="http-tab px-4 py-2.5 text-sm font-medium text-gray-600 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300 transition-colors">Auth</button>
+                    </div>
+
+                    <!-- Headers Tab -->
+                    <div id="http-tab-headers" class="http-tab-content p-4">
+                        <div class="space-y-2" id="http-headers-container">
+                            <!-- Header rows will be added here -->
+                        </div>
+                        <button onclick="addHttpHeaderRow()" class="mt-3 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            添加 Header
+                        </button>
+                    </div>
+
+                    <!-- Query Tab -->
+                    <div id="http-tab-query" class="http-tab-content p-4 hidden">
+                        <div class="space-y-2" id="http-query-container">
+                            <!-- Query rows will be added here -->
+                        </div>
+                        <button onclick="addHttpQueryRow()" class="mt-3 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            添加参数
+                        </button>
+                        <div id="http-query-preview" class="mt-3 text-xs text-gray-500 font-mono bg-gray-50 p-2 rounded hidden"></div>
+                    </div>
+
+                    <!-- Body Tab -->
+                    <div id="http-tab-body" class="http-tab-content p-4 hidden">
+                        <div class="flex items-center gap-4 mb-3">
+                            <label class="text-sm font-medium text-gray-600">类型:</label>
+                            <select id="http-body-type" onchange="onBodyTypeChange()" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                                <option value="none">None</option>
+                                <option value="json" selected>JSON</option>
+                                <option value="form">Form Data</option>
+                                <option value="text">Text</option>
+                                <option value="raw">Raw</option>
+                            </select>
+                            <button onclick="formatHttpBodyJson()" class="text-sm text-indigo-600 hover:text-indigo-700">格式化 JSON</button>
+                        </div>
+                        <div id="http-body-editor">
+                            <textarea id="http-body-input" class="w-full h-40 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y" placeholder='{"key": "value"}'></textarea>
+                        </div>
+                        <div id="http-form-container" class="hidden">
+                            <div class="space-y-2" id="http-form-rows"></div>
+                            <button onclick="addHttpFormRow()" class="mt-3 text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                                添加字段
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Auth Tab -->
+                    <div id="http-tab-auth" class="http-tab-content p-4 hidden">
+                        <div class="flex items-center gap-4 mb-4">
+                            <label class="text-sm font-medium text-gray-600">认证类型:</label>
+                            <select id="http-auth-type" onchange="onAuthTypeChange()" class="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                                <option value="none">无</option>
+                                <option value="basic">Basic Auth</option>
+                                <option value="bearer">Bearer Token</option>
+                                <option value="apikey">API Key</option>
+                            </select>
+                        </div>
+                        <div id="http-auth-basic" class="hidden space-y-3">
+                            <input id="http-auth-username" type="text" placeholder="用户名" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                            <input id="http-auth-password" type="password" placeholder="密码" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                        </div>
+                        <div id="http-auth-bearer" class="hidden">
+                            <input id="http-auth-token" type="text" placeholder="Bearer Token" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                        </div>
+                        <div id="http-auth-apikey" class="hidden space-y-3">
+                            <input id="http-auth-apikey-name" type="text" placeholder="Key 名称 (如 X-API-Key)" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                            <input id="http-auth-apikey-value" type="text" placeholder="Key 值" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm font-mono focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                            <select id="http-auth-apikey-in" class="w-full px-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                                <option value="header">放在 Header 中</option>
+                                <option value="query">放在 Query 参数中</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Response -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
+                        <span class="text-sm font-medium text-gray-700">响应结果</span>
+                        <div id="http-response-meta" class="flex items-center gap-4 text-sm text-gray-500 hidden">
+                            <span>Status: <strong id="http-response-status" class="text-gray-800">-</strong></span>
+                            <span>Size: <strong id="http-response-size" class="text-gray-800">-</strong></span>
+                            <span>Time: <strong id="http-response-time" class="text-gray-800">-</strong></span>
+                        </div>
+                    </div>
+                    <div id="http-response-error" class="hidden p-4 bg-red-50 border-b border-red-100 text-sm text-red-600"></div>
+                    <div class="flex border-b border-gray-200">
+                        <button onclick="switchResponseTab('body')" data-resp-tab="body" class="resp-tab px-4 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300 transition-colors">Body</button>
+                        <button onclick="switchResponseTab('headers')" data-resp-tab="headers" class="resp-tab px-4 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-300 transition-colors">Headers</button>
+                    </div>
+                    <div id="http-response-body" class="resp-tab-content p-4">
+                        <div id="http-response-output" class="json-output-area w-full border border-gray-200 rounded-lg overflow-hidden" style="height:400px">
+                            <div class="json-code-container h-full">
+                                <div id="http-response-line-numbers" class="json-line-numbers" style="display:none;"></div>
+                                <div class="json-code-content">
+                                    <pre><code id="http-response-text" class="hljs language-json"></code></pre>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="http-response-headers" class="resp-tab-content p-4 hidden">
+                        <div id="http-response-headers-table" class="text-sm font-mono"></div>
+                    </div>
+                </div>
+
+                <!-- History & Templates -->
+                <div class="mt-4 flex gap-2">
+                    <button onclick="showHttpHistory()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        历史记录
+                    </button>
+                    <button onclick="saveHttpTemplate()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/></svg>
+                        保存模板
+                    </button>
+                    <button onclick="showHttpTemplates()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                        我的模板
+                    </button>
                 </div>
             </div>
 
@@ -519,11 +768,55 @@
     }
 
     // ===== TOOL 2: JSON Formatter =====
+    function updateJsonInputLineNums() {
+        const textarea = document.getElementById('json-input');
+        const lines = textarea.value.split('\n');
+        const lineNumsEl = document.getElementById('json-input-line-nums');
+
+        // Generate line numbers with comment highlighting
+        lineNumsEl.innerHTML = lines.map((line, i) => {
+            const isComment = line.trim().startsWith('#');
+            return `<div class="line-num${isComment ? ' comment' : ''}">${i + 1}</div>`;
+        }).join('');
+    }
+
+    function syncJsonInputScroll() {
+        const textarea = document.getElementById('json-input');
+        const lineNumsEl = document.getElementById('json-input-line-nums');
+        lineNumsEl.scrollTop = textarea.scrollTop;
+    }
+
+    function clearJsonInput() {
+        document.getElementById('json-input').value = '';
+        updateJsonInputLineNums();
+    }
+
     function updateJsonOutput(text, lang = 'json') {
         const el = document.getElementById('json-output-text');
         el.textContent = text;
-        el.className = `hljs language-${lang} text-sm`;
+        el.className = `hljs language-${lang}`;
         hljs.highlightElement(el);
+
+        // Generate line numbers
+        const lines = text.split('\n');
+        const lineNumbersEl = document.getElementById('json-line-numbers');
+        if (lines.length > 0 && text.trim()) {
+            lineNumbersEl.innerHTML = lines.map((_, i) =>
+                `<div class="line-num">${i + 1}</div>`
+            ).join('');
+            lineNumbersEl.style.display = 'block';
+        } else {
+            lineNumbersEl.style.display = 'none';
+        }
+
+        // Setup scroll sync
+        const codeContent = el.closest('.json-code-content');
+        if (codeContent && !codeContent._scrollSyncSetup) {
+            codeContent.addEventListener('scroll', () => {
+                lineNumbersEl.scrollTop = codeContent.scrollTop;
+            });
+            codeContent._scrollSyncSetup = true;
+        }
     }
 
     async function jsonFormat(sortKeys = false) {
@@ -584,17 +877,78 @@
         el.classList.remove('hidden');
     }
 
+    function setJsonHeight(height) {
+        const inputContainer = document.getElementById('json-input-container');
+        const outputContainer = document.getElementById('json-output');
+        inputContainer.style.height = height + 'px';
+        outputContainer.style.height = height + 'px';
+        // Re-sync line numbers height
+        updateJsonInputLineNums();
+    }
+
     // ===== TOOL 3: Python Dict to JSON =====
+    function setPydictHeight(height) {
+        const inputContainer = document.getElementById('pydict-input-container');
+        const outputContainer = document.getElementById('pydict-output');
+        inputContainer.style.height = height + 'px';
+        outputContainer.style.height = height + 'px';
+        // Re-sync line numbers height
+        updatePydictInputLineNums();
+    }
+
+    function updatePydictInputLineNums() {
+        const textarea = document.getElementById('pydict-input');
+        const lines = textarea.value.split('\n');
+        const lineNumsEl = document.getElementById('pydict-input-line-nums');
+        lineNumsEl.innerHTML = lines.map((_, i) => `<div class="line-num">${i + 1}</div>`).join('');
+    }
+
+    function syncPydictInputScroll() {
+        const textarea = document.getElementById('pydict-input');
+        const lineNumsEl = document.getElementById('pydict-input-line-nums');
+        lineNumsEl.scrollTop = textarea.scrollTop;
+    }
+
+    function clearPydictInput() {
+        document.getElementById('pydict-input').value = '';
+        updatePydictInputLineNums();
+        document.getElementById('pydict-output-text').textContent = '';
+        document.getElementById('pydict-line-numbers').style.display = 'none';
+    }
+
+    function updatePydictOutput(text) {
+        const el = document.getElementById('pydict-output-text');
+        el.textContent = text;
+        el.className = 'hljs language-json';
+        hljs.highlightElement(el);
+
+        // Generate line numbers
+        const lines = text.split('\n');
+        const lineNumbersEl = document.getElementById('pydict-line-numbers');
+        if (lines.length > 0 && text.trim()) {
+            lineNumbersEl.innerHTML = lines.map((_, i) => `<div class="line-num">${i + 1}</div>`).join('');
+            lineNumbersEl.style.display = 'block';
+        } else {
+            lineNumbersEl.style.display = 'none';
+        }
+
+        // Setup scroll sync
+        const codeContent = el.closest('.json-code-content');
+        if (codeContent && !codeContent._scrollSyncSetup) {
+            codeContent.addEventListener('scroll', () => {
+                lineNumbersEl.scrollTop = codeContent.scrollTop;
+            });
+            codeContent._scrollSyncSetup = true;
+        }
+    }
+
     async function convertPyDict() {
         const input = document.getElementById('pydict-input').value;
         if (!input.trim()) return showToast('请输入 Python Dict');
         try {
             const data = await apiCall('/api/json/py-dict', { input: input });
             if (data.valid) {
-                const el = document.getElementById('pydict-output-text');
-                el.textContent = data.result;
-                el.className = 'hljs language-json text-sm';
-                hljs.highlightElement(el);
+                updatePydictOutput(data.result);
                 document.getElementById('pydict-error').classList.add('hidden');
             } else {
                 const errEl = document.getElementById('pydict-error');
@@ -735,7 +1089,646 @@
     document.addEventListener('DOMContentLoaded', () => {
         startCurrentTime();
         initMarked();
+        updateJsonInputLineNums();
+        updatePydictInputLineNums();
+        initHttpClient();
     });
+
+    // ===== TOOL 6: HTTP Client =====
+    let httpConfig = {
+        method: 'GET',
+        url: '',
+        headers: [],
+        query: [],
+        bodyType: 'json',
+        body: '',
+        formData: [],
+        authType: 'none',
+        auth: {}
+    };
+
+    function initHttpClient() {
+        // Add initial rows
+        addHttpHeaderRow();
+        addHttpQueryRow();
+        addHttpFormRow();
+        switchHttpTab('headers');
+        switchResponseTab('body');
+    }
+
+    function switchHttpTab(tab) {
+        document.querySelectorAll('.http-tab').forEach(btn => {
+            btn.classList.remove('text-indigo-600', 'border-indigo-500');
+            btn.classList.add('text-gray-600', 'border-transparent');
+        });
+        document.querySelectorAll('.http-tab-content').forEach(content => content.classList.add('hidden'));
+
+        const activeBtn = document.querySelector(`[data-http-tab="${tab}"]`);
+        if (activeBtn) {
+            activeBtn.classList.remove('text-gray-600', 'border-transparent');
+            activeBtn.classList.add('text-indigo-600', 'border-indigo-500');
+        }
+        const activeContent = document.getElementById(`http-tab-${tab}`);
+        if (activeContent) activeContent.classList.remove('hidden');
+    }
+
+    function switchResponseTab(tab) {
+        document.querySelectorAll('.resp-tab').forEach(btn => {
+            btn.classList.remove('text-indigo-600', 'border-indigo-500');
+            btn.classList.add('text-gray-600', 'border-transparent');
+        });
+        document.querySelectorAll('.resp-tab-content').forEach(content => content.classList.add('hidden'));
+
+        const activeBtn = document.querySelector(`[data-resp-tab="${tab}"]`);
+        if (activeBtn) {
+            activeBtn.classList.remove('text-gray-600', 'border-transparent');
+            activeBtn.classList.add('text-indigo-600', 'border-indigo-500');
+        }
+        const activeContent = document.getElementById(`http-response-${tab}`);
+        if (activeContent) activeContent.classList.remove('hidden');
+    }
+
+    function addHttpHeaderRow(key = '', value = '') {
+        const container = document.getElementById('http-headers-container');
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2';
+        row.innerHTML = `
+            <input type="checkbox" class="http-header-enabled rounded" checked>
+            <input type="text" class="http-header-key flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm font-mono" placeholder="Header 名称" value="${escapeHtml(key)}">
+            <input type="text" class="http-header-value flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm font-mono" placeholder="值" value="${escapeHtml(value)}">
+            <button onclick="this.parentElement.remove()" class="p-1 text-gray-400 hover:text-red-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        `;
+        container.appendChild(row);
+    }
+
+    function addHttpQueryRow(key = '', value = '') {
+        const container = document.getElementById('http-query-container');
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2';
+        row.innerHTML = `
+            <input type="checkbox" class="http-query-enabled rounded" checked>
+            <input type="text" class="http-query-key flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm font-mono" placeholder="参数名" value="${escapeHtml(key)}" oninput="updateQueryPreview()">
+            <input type="text" class="http-query-value flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm font-mono" placeholder="值" value="${escapeHtml(value)}" oninput="updateQueryPreview()">
+            <button onclick="this.parentElement.remove(); updateQueryPreview();" class="p-1 text-gray-400 hover:text-red-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        `;
+        container.appendChild(row);
+        updateQueryPreview();
+    }
+
+    function updateQueryPreview() {
+        const params = getHttpQueryParams();
+        const preview = document.getElementById('http-query-preview');
+        if (params.length > 0) {
+            const queryString = params.map(p => `${encodeURIComponent(p.key)}=${encodeURIComponent(p.value)}`).join('&');
+            preview.textContent = '?' + queryString;
+            preview.classList.remove('hidden');
+        } else {
+            preview.classList.add('hidden');
+        }
+    }
+
+    function addHttpFormRow(key = '', value = '') {
+        const container = document.getElementById('http-form-rows');
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2';
+        row.innerHTML = `
+            <input type="checkbox" class="http-form-enabled rounded" checked>
+            <input type="text" class="http-form-key flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm font-mono" placeholder="字段名" value="${escapeHtml(key)}">
+            <input type="text" class="http-form-value flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm font-mono" placeholder="值" value="${escapeHtml(value)}">
+            <button onclick="this.parentElement.remove()" class="p-1 text-gray-400 hover:text-red-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        `;
+        container.appendChild(row);
+    }
+
+    function onBodyTypeChange() {
+        const type = document.getElementById('http-body-type').value;
+        const editor = document.getElementById('http-body-editor');
+        const formContainer = document.getElementById('http-form-container');
+
+        if (type === 'form') {
+            editor.classList.add('hidden');
+            formContainer.classList.remove('hidden');
+        } else {
+            editor.classList.remove('hidden');
+            formContainer.classList.add('hidden');
+        }
+
+        // Update placeholder based on type
+        const textarea = document.getElementById('http-body-input');
+        switch(type) {
+            case 'json':
+                textarea.placeholder = '{"key": "value"}';
+                break;
+            case 'text':
+                textarea.placeholder = '输入纯文本内容...';
+                break;
+            case 'raw':
+                textarea.placeholder = '输入原始请求体...';
+                break;
+            default:
+                textarea.placeholder = '';
+        }
+    }
+
+    function onAuthTypeChange() {
+        const type = document.getElementById('http-auth-type').value;
+        document.getElementById('http-auth-basic').classList.add('hidden');
+        document.getElementById('http-auth-bearer').classList.add('hidden');
+        document.getElementById('http-auth-apikey').classList.add('hidden');
+
+        if (type === 'basic') {
+            document.getElementById('http-auth-basic').classList.remove('hidden');
+        } else if (type === 'bearer') {
+            document.getElementById('http-auth-bearer').classList.remove('hidden');
+        } else if (type === 'apikey') {
+            document.getElementById('http-auth-apikey').classList.remove('hidden');
+        }
+    }
+
+    function getHttpHeaders() {
+        const rows = document.querySelectorAll('#http-headers-container > div');
+        const headers = [];
+        rows.forEach(row => {
+            const enabled = row.querySelector('.http-header-enabled').checked;
+            const key = row.querySelector('.http-header-key').value.trim();
+            const value = row.querySelector('.http-header-value').value.trim();
+            if (key) {
+                headers.push({ key, value, enabled });
+            }
+        });
+        return headers;
+    }
+
+    function getHttpQueryParams() {
+        const rows = document.querySelectorAll('#http-query-container > div');
+        const params = [];
+        rows.forEach(row => {
+            const enabled = row.querySelector('.http-query-enabled').checked;
+            const key = row.querySelector('.http-query-key').value.trim();
+            const value = row.querySelector('.http-query-value').value.trim();
+            if (key) {
+                params.push({ key, value, enabled });
+            }
+        });
+        return params;
+    }
+
+    function getHttpFormData() {
+        const rows = document.querySelectorAll('#http-form-rows > div');
+        const data = [];
+        rows.forEach(row => {
+            const enabled = row.querySelector('.http-form-enabled').checked;
+            const key = row.querySelector('.http-form-key').value.trim();
+            const value = row.querySelector('.http-form-value').value.trim();
+            if (key) {
+                data.push({ key, value, enabled });
+            }
+        });
+        return data;
+    }
+
+    function getHttpAuth() {
+        const type = document.getElementById('http-auth-type').value;
+        if (type === 'none') return null;
+
+        const auth = { auth_type: type };
+
+        if (type === 'basic') {
+            auth.username = document.getElementById('http-auth-username').value;
+            auth.password = document.getElementById('http-auth-password').value;
+        } else if (type === 'bearer') {
+            auth.token = document.getElementById('http-auth-token').value;
+        } else if (type === 'apikey') {
+            auth.api_key_name = document.getElementById('http-auth-apikey-name').value;
+            auth.api_key_value = document.getElementById('http-auth-apikey-value').value;
+            auth.api_key_in = document.getElementById('http-auth-apikey-in').value === 'query' ? 'Query' : 'Header';
+        }
+
+        return auth;
+    }
+
+    function formatHttpBodyJson() {
+        const textarea = document.getElementById('http-body-input');
+        try {
+            const parsed = JSON.parse(textarea.value);
+            textarea.value = JSON.stringify(parsed, null, 2);
+            showToast('JSON 格式化成功', 'success');
+        } catch (e) {
+            showToast('JSON 格式无效');
+        }
+    }
+
+    async function sendHttpRequest() {
+        const url = document.getElementById('http-url').value.trim();
+        if (!url) return showToast('请输入 URL');
+
+        const method = document.getElementById('http-method').value;
+        const bodyType = document.getElementById('http-body-type').value;
+
+        const requestBody = {
+            url,
+            method: method.toLowerCase(),
+            headers: getHttpHeaders(),
+            query_params: getHttpQueryParams(),
+            body_type: bodyType,
+            auth: getHttpAuth(),
+            timeout_ms: 30000
+        };
+
+        if (bodyType !== 'none') {
+            if (bodyType === 'form') {
+                requestBody.form_data = getHttpFormData();
+            } else {
+                requestBody.body = document.getElementById('http-body-input').value;
+            }
+        }
+
+        const sendBtn = document.getElementById('http-send-btn');
+        const originalText = sendBtn.innerHTML;
+        sendBtn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 发送中...';
+        sendBtn.disabled = true;
+
+        const startTime = Date.now();
+
+        try {
+            const response = await fetch('/api/http/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            const data = await response.json();
+            const duration = Date.now() - startTime;
+
+            // Update response meta
+            document.getElementById('http-response-meta').classList.remove('hidden');
+            document.getElementById('http-response-time').textContent = duration + 'ms';
+
+            if (data.error) {
+                document.getElementById('http-response-error').textContent = data.error;
+                document.getElementById('http-response-error').classList.remove('hidden');
+                document.getElementById('http-response-status').textContent = '-';
+                document.getElementById('http-response-status').className = 'text-gray-800';
+            } else {
+                document.getElementById('http-response-error').classList.add('hidden');
+
+                // Status with color
+                const statusEl = document.getElementById('http-response-status');
+                statusEl.textContent = data.status + ' ' + data.status_text;
+                if (data.status < 300) {
+                    statusEl.className = 'text-green-600';
+                } else if (data.status < 400) {
+                    statusEl.className = 'text-blue-600';
+                } else {
+                    statusEl.className = 'text-red-600';
+                }
+
+                // Size
+                const sizeEl = document.getElementById('http-response-size');
+                if (data.body_size > 1024) {
+                    sizeEl.textContent = (data.body_size / 1024).toFixed(2) + ' KB';
+                } else {
+                    sizeEl.textContent = data.body_size + ' B';
+                }
+
+                // Body
+                const outputEl = document.getElementById('http-response-text');
+                outputEl.textContent = data.body;
+                if (data.is_json) {
+                    outputEl.className = 'hljs language-json';
+                } else {
+                    outputEl.className = 'hljs language-plaintext';
+                }
+                hljs.highlightElement(outputEl);
+
+                // Line numbers
+                const lines = data.body.split('\n');
+                const lineNumbersEl = document.getElementById('http-response-line-numbers');
+                if (lines.length > 0 && data.body.trim()) {
+                    lineNumbersEl.innerHTML = lines.map((_, i) => `<div class="line-num">${i + 1}</div>`).join('');
+                    lineNumbersEl.style.display = 'block';
+                } else {
+                    lineNumbersEl.style.display = 'none';
+                }
+
+                // Headers table
+                const headersTable = document.getElementById('http-response-headers-table');
+                headersTable.innerHTML = data.headers.map(([k, v]) =>
+                    `<div class="flex border-b border-gray-100 py-2">
+                        <div class="w-1/3 text-gray-600">${escapeHtml(k)}</div>
+                        <div class="flex-1 text-gray-800 break-all">${escapeHtml(v)}</div>
+                    </div>`
+                ).join('');
+
+                // Save to history
+                saveToHistory(requestBody, data, duration);
+            }
+
+        } catch (e) {
+            document.getElementById('http-response-error').textContent = '请求失败: ' + e.message;
+            document.getElementById('http-response-error').classList.remove('hidden');
+        } finally {
+            sendBtn.innerHTML = originalText;
+            sendBtn.disabled = false;
+        }
+    }
+
+    function clearHttpRequest() {
+        document.getElementById('http-url').value = '';
+        document.getElementById('http-method').value = 'GET';
+        document.getElementById('http-body-input').value = '';
+        document.getElementById('http-body-type').value = 'json';
+        document.getElementById('http-auth-type').value = 'none';
+        document.getElementById('http-headers-container').innerHTML = '';
+        document.getElementById('http-query-container').innerHTML = '';
+        document.getElementById('http-form-rows').innerHTML = '';
+        document.getElementById('http-response-text').textContent = '';
+        document.getElementById('http-response-line-numbers').style.display = 'none';
+        document.getElementById('http-response-error').classList.add('hidden');
+        document.getElementById('http-response-meta').classList.add('hidden');
+        addHttpHeaderRow();
+        addHttpQueryRow();
+        addHttpFormRow();
+        onBodyTypeChange();
+        onAuthTypeChange();
+    }
+
+    function saveToHistory(request, response, duration) {
+        const history = JSON.parse(localStorage.getItem('http_history') || '[]');
+        const entry = {
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            request,
+            response: {
+                status: response.status,
+                status_text: response.status_text,
+                duration_ms: duration
+            }
+        };
+        history.unshift(entry);
+        // Keep max 50 entries
+        if (history.length > 50) history.pop();
+        localStorage.setItem('http_history', JSON.stringify(history));
+    }
+
+    function showHttpHistory() {
+        const history = JSON.parse(localStorage.getItem('http_history') || '[]');
+        if (history.length === 0) {
+            showToast('暂无历史记录', 'info');
+            return;
+        }
+
+        const items = history.map(h => {
+            const method = h.request.method.toUpperCase();
+            const url = h.request.url;
+            const status = h.response.status;
+            const time = new Date(h.timestamp).toLocaleString('zh-CN');
+            const statusClass = status < 300 ? 'text-green-600' : status < 400 ? 'text-blue-600' : 'text-red-600';
+
+            return `<div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-gray-100 mb-2" onclick="loadFromHistory(${h.id})">
+                <div class="flex items-center gap-3">
+                    <span class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs font-bold">${method}</span>
+                    <span class="text-sm text-gray-800 truncate max-w-md">${escapeHtml(url)}</span>
+                </div>
+                <div class="flex items-center gap-3 text-xs text-gray-500">
+                    <span class="${statusClass} font-medium">${status}</span>
+                    <span>${time}</span>
+                    <button onclick="event.stopPropagation(); deleteHistory(${h.id})" class="p-1 text-gray-400 hover:text-red-500">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </div>`;
+        }).join('');
+
+        showHttpModal('历史记录', items);
+    }
+
+    function loadFromHistory(id) {
+        const history = JSON.parse(localStorage.getItem('http_history') || '[]');
+        const entry = history.find(h => h.id === id);
+        if (!entry) return;
+
+        const req = entry.request;
+        document.getElementById('http-url').value = req.url;
+        document.getElementById('http-method').value = req.method.toUpperCase();
+        document.getElementById('http-body-type').value = req.body_type || 'none';
+
+        // Load headers
+        const headersContainer = document.getElementById('http-headers-container');
+        headersContainer.innerHTML = '';
+        if (req.headers) {
+            req.headers.forEach(h => addHttpHeaderRow(h.key, h.value));
+        }
+        if (req.headers.length === 0) addHttpHeaderRow();
+
+        // Load query params
+        const queryContainer = document.getElementById('http-query-container');
+        queryContainer.innerHTML = '';
+        if (req.query_params) {
+            req.query_params.forEach(p => addHttpQueryRow(p.key, p.value));
+        }
+        if (req.query_params.length === 0) addHttpQueryRow();
+
+        // Load body
+        if (req.body_type === 'form') {
+            const formContainer = document.getElementById('http-form-rows');
+            formContainer.innerHTML = '';
+            if (req.form_data) {
+                req.form_data.forEach(f => addHttpFormRow(f.key, f.value));
+            }
+        } else {
+            document.getElementById('http-body-input').value = req.body || '';
+        }
+
+        // Load auth
+        if (req.auth) {
+            document.getElementById('http-auth-type').value = req.auth.auth_type;
+            onAuthTypeChange();
+            if (req.auth.auth_type === 'basic') {
+                document.getElementById('http-auth-username').value = req.auth.username || '';
+                document.getElementById('http-auth-password').value = req.auth.password || '';
+            } else if (req.auth.auth_type === 'bearer') {
+                document.getElementById('http-auth-token').value = req.auth.token || '';
+            } else if (req.auth.auth_type === 'apikey') {
+                document.getElementById('http-auth-apikey-name').value = req.auth.api_key_name || '';
+                document.getElementById('http-auth-apikey-value').value = req.auth.api_key_value || '';
+                document.getElementById('http-auth-apikey-in').value = req.auth.api_key_in === 'Query' ? 'query' : 'header';
+            }
+        }
+
+        onBodyTypeChange();
+        closeHttpModal();
+        showToast('已加载历史请求', 'success');
+    }
+
+    function deleteHistory(id) {
+        let history = JSON.parse(localStorage.getItem('http_history') || '[]');
+        history = history.filter(h => h.id !== id);
+        localStorage.setItem('http_history', JSON.stringify(history));
+        showHttpHistory();
+    }
+
+    function saveHttpTemplate() {
+        const name = prompt('请输入模板名称:');
+        if (!name) return;
+
+        const request = {
+            url: document.getElementById('http-url').value,
+            method: document.getElementById('http-method').value,
+            headers: getHttpHeaders(),
+            query_params: getHttpQueryParams(),
+            body_type: document.getElementById('http-body-type').value,
+            body: document.getElementById('http-body-input').value,
+            form_data: getHttpFormData(),
+            auth: getHttpAuth()
+        };
+
+        const templates = JSON.parse(localStorage.getItem('http_templates') || '[]');
+        templates.push({
+            id: Date.now(),
+            name,
+            request
+        });
+        localStorage.setItem('http_templates', JSON.stringify(templates));
+        showToast('模板保存成功', 'success');
+    }
+
+    function showHttpTemplates() {
+        const templates = JSON.parse(localStorage.getItem('http_templates') || '[]');
+        if (templates.length === 0) {
+            showToast('暂无保存的模板', 'info');
+            return;
+        }
+
+        const items = templates.map(t => {
+            const method = t.request.method.toUpperCase();
+            const url = t.request.url;
+
+            return `<div class="flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg cursor-pointer border border-gray-100 mb-2" onclick="loadTemplate(${t.id})">
+                <div class="flex items-center gap-3">
+                    <span class="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-xs font-bold">${method}</span>
+                    <div>
+                        <div class="text-sm font-medium text-gray-800">${escapeHtml(t.name)}</div>
+                        <div class="text-xs text-gray-500 truncate max-w-md">${escapeHtml(url)}</div>
+                    </div>
+                </div>
+                <button onclick="event.stopPropagation(); deleteTemplate(${t.id})" class="p-1 text-gray-400 hover:text-red-500">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                </button>
+            </div>`;
+        }).join('');
+
+        showHttpModal('我的模板', items);
+    }
+
+    function loadTemplate(id) {
+        const templates = JSON.parse(localStorage.getItem('http_templates') || '[]');
+        const template = templates.find(t => t.id === id);
+        if (!template) return;
+
+        // Same loading logic as loadFromHistory
+        loadRequestConfig(template.request);
+        closeHttpModal();
+        showToast('已加载模板', 'success');
+    }
+
+    function loadRequestConfig(req) {
+        document.getElementById('http-url').value = req.url;
+        document.getElementById('http-method').value = req.method.toUpperCase();
+        document.getElementById('http-body-type').value = req.body_type || 'none';
+
+        // Load headers
+        const headersContainer = document.getElementById('http-headers-container');
+        headersContainer.innerHTML = '';
+        if (req.headers && req.headers.length > 0) {
+            req.headers.forEach(h => addHttpHeaderRow(h.key, h.value));
+        } else {
+            addHttpHeaderRow();
+        }
+
+        // Load query params
+        const queryContainer = document.getElementById('http-query-container');
+        queryContainer.innerHTML = '';
+        if (req.query_params && req.query_params.length > 0) {
+            req.query_params.forEach(p => addHttpQueryRow(p.key, p.value));
+        } else {
+            addHttpQueryRow();
+        }
+
+        // Load body
+        if (req.body_type === 'form') {
+            const formContainer = document.getElementById('http-form-rows');
+            formContainer.innerHTML = '';
+            if (req.form_data && req.form_data.length > 0) {
+                req.form_data.forEach(f => addHttpFormRow(f.key, f.value));
+            } else {
+                addHttpFormRow();
+            }
+        } else {
+            document.getElementById('http-body-input').value = req.body || '';
+        }
+
+        // Load auth
+        if (req.auth) {
+            document.getElementById('http-auth-type').value = req.auth.auth_type || 'none';
+            onAuthTypeChange();
+            if (req.auth.auth_type === 'basic') {
+                document.getElementById('http-auth-username').value = req.auth.username || '';
+                document.getElementById('http-auth-password').value = req.auth.password || '';
+            } else if (req.auth.auth_type === 'bearer') {
+                document.getElementById('http-auth-token').value = req.auth.token || '';
+            } else if (req.auth.auth_type === 'apikey') {
+                document.getElementById('http-auth-apikey-name').value = req.auth.api_key_name || '';
+                document.getElementById('http-auth-apikey-value').value = req.auth.api_key_value || '';
+                document.getElementById('http-auth-apikey-in').value = req.auth.api_key_in === 'Query' ? 'query' : 'header';
+            }
+        }
+
+        onBodyTypeChange();
+        updateQueryPreview();
+    }
+
+    function deleteTemplate(id) {
+        let templates = JSON.parse(localStorage.getItem('http_templates') || '[]');
+        templates = templates.filter(t => t.id !== id);
+        localStorage.setItem('http_templates', JSON.stringify(templates));
+        showHttpTemplates();
+    }
+
+    function showHttpModal(title, content) {
+        const existing = document.getElementById('http-modal');
+        if (existing) existing.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'http-modal';
+        modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+        modal.onclick = (e) => { if (e.target === modal) closeHttpModal(); };
+        modal.innerHTML = `
+            <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-hidden">
+                <div class="flex items-center justify-between p-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">${title}</h3>
+                    <button onclick="closeHttpModal()" class="p-1 text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="p-4 overflow-y-auto max-h-[60vh]">
+                    ${content}
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+
+    function closeHttpModal() {
+        const modal = document.getElementById('http-modal');
+        if (modal) modal.remove();
+    }
     </script>
 </body>
 </html>
