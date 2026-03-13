@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开发者工具箱 - Dev Tools</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/json.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/python.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/javascript.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/bash.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/rust.min.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['"JetBrains Mono"', '"Fira Code"', 'Consolas', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .tool-panel { display: none; }
+        .tool-panel.active { display: block; }
+        .sidebar-item { transition: all 0.2s ease; }
+        .sidebar-item:hover { background: rgba(99, 102, 241, 0.15); }
+        .sidebar-item.active { background: #4f46e5; color: white; }
+        textarea { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+        .copy-btn { position: relative; }
+        .copy-btn.copied::after {
+            content: '已复制!'; position: absolute; top: -28px; left: 50%;
+            transform: translateX(-50%); background: #10b981; color: white;
+            padding: 2px 8px; border-radius: 4px; font-size: 12px;
+            white-space: nowrap; animation: fadeOut 1.5s forwards;
+        }
+        @keyframes fadeOut { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+        .toast { animation: slideIn 0.3s ease, fadeOut 3s 0.3s forwards; }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .result-card { transition: all 0.3s ease; }
+        .result-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        pre code.hljs { border-radius: 8px; font-size: 13px; line-height: 1.5; }
+        .markdown-body h1 { font-size: 2em; font-weight: 700; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; margin: 1em 0 0.5em; }
+        .markdown-body h2 { font-size: 1.5em; font-weight: 600; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; margin: 1em 0 0.5em; }
+        .markdown-body h3 { font-size: 1.25em; font-weight: 600; margin: 1em 0 0.5em; }
+        .markdown-body p { margin: 0.5em 0; line-height: 1.7; }
+        .markdown-body ul, .markdown-body ol { padding-left: 2em; margin: 0.5em 0; }
+        .markdown-body li { margin: 0.25em 0; }
+        .markdown-body code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
+        .markdown-body pre code { background: transparent; padding: 0; }
+        .markdown-body pre { margin: 1em 0; border-radius: 8px; overflow: auto; }
+        .markdown-body blockquote { border-left: 4px solid #6366f1; padding-left: 1em; color: #6b7280; margin: 1em 0; }
+        .markdown-body table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+        .markdown-body th, .markdown-body td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; }
+        .markdown-body th { background: #f8fafc; font-weight: 600; }
+        .markdown-body a { color: #4f46e5; text-decoration: underline; }
+        .markdown-body img { max-width: 100%; border-radius: 8px; }
+        .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 2em 0; }
+        #mobile-nav { scrollbar-width: none; }
+        #mobile-nav::-webkit-scrollbar { display: none; }
+        .json-output-area { min-height: 300px; max-height: 600px; overflow: auto; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col">
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col gap-2"></div>
+    <div class="flex flex-1 flex-col md:flex-row">
+        <!-- Sidebar desktop -->
+        <aside id="sidebar" class="hidden md:flex md:flex-col w-64 bg-slate-900 text-slate-300 min-h-screen flex-shrink-0">
+            <div class="p-5 border-b border-slate-700">
+                <h1 class="text-xl font-bold text-white flex items-center gap-2">
+                    <svg class="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    开发者工具箱
+                </h1>
+                <p class="text-xs text-slate-500 mt-1">Developer Toolbox</p>
+            </div>
+            <nav class="flex-1 p-3 space-y-1">
+                <button onclick="switchTool('time')" data-tool="time" class="sidebar-item active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>时间转换</button>
+                <button onclick="switchTool('json')" data-tool="json" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>JSON 格式化</button>
+                <button onclick="switchTool('pydict')" data-tool="pydict" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>Dict 转 JSON</button>
+                <button onclick="switchTool('translate')" data-tool="translate" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>翻译工具</button>
+                <button onclick="switchTool('markdown')" data-tool="markdown" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>Markdown 渲染</button>
+            </nav>
+            <div class="p-4 border-t border-slate-700 text-xs text-slate-500 text-center">Dev Tools v0.1.0</div>
+        </aside>
+        <!-- Mobile nav -->
+        <nav id="mobile-nav" class="md:hidden flex overflow-x-auto bg-slate-900 text-slate-300 px-2 py-2 gap-1 flex-shrink-0">
+            <button onclick="switchTool('time')" data-tool="time" class="sidebar-item active flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>时间</button>
+            <button onclick="switchTool('json')" data-tool="json" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>JSON</button>
+            <button onclick="switchTool('pydict')" data-tool="pydict" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>Dict</button>
+            <button onclick="switchTool('translate')" data-tool="translate" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>翻译</button>
+            <button onclick="switchTool('markdown')" data-tool="markdown" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>MD</button>
+        </nav>
+        <main class="flex-1 overflow-auto">
+
+            <!-- ===== TOOL 1: Time Converter ===== -->
+            <div id="tool-time" class="tool-panel active p-6 max-w-6xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    时间转换
+                </h2>
+                <!-- Current time -->
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6 result-card">
+                    <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">当前时间</h3>
+                    <div id="current-time" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-400">Unix 秒</div><div id="ct-unix-sec" class="text-lg font-mono font-semibold text-gray-800">-</div></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-400">Unix 毫秒</div><div id="ct-unix-ms" class="text-lg font-mono font-semibold text-gray-800">-</div></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-400">本地时间</div><div id="ct-local" class="text-lg font-mono font-semibold text-gray-800">-</div></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-400">UTC 时间</div><div id="ct-utc" class="text-lg font-mono font-semibold text-gray-800">-</div></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-400">ISO 8601</div><div id="ct-iso" class="text-lg font-mono font-semibold text-indigo-600">-</div></div>
+                        <div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-400">星期</div><div id="ct-weekday" class="text-lg font-mono font-semibold text-gray-800">-</div></div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Timestamp to Datetime -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 result-card">
+                        <h3 class="text-base font-semibold text-gray-700 mb-4">时间戳 &rarr; 日期时间</h3>
+                        <div class="space-y-3">
+                            <input id="ts-input" type="text" placeholder="输入时间戳 (秒或毫秒)" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm">
+                            <select id="ts-tz" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm text-gray-600"><option value="">默认时区</option>
+<option value="Asia/Shanghai">Asia/Shanghai (中国)</option>
+<option value="Asia/Tokyo">Asia/Tokyo (日本)</option>
+<option value="America/New_York">America/New_York (美东)</option>
+<option value="America/Los_Angeles">America/Los_Angeles (美西)</option>
+<option value="Europe/London">Europe/London (伦敦)</option>
+<option value="Europe/Berlin">Europe/Berlin (柏林)</option>
+<option value="UTC">UTC</option></select>
+                            <button onclick="convertTimestamp()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium transition-colors">转换</button>
+                        </div>
+                        <div id="ts-result" class="mt-4 hidden"><div class="space-y-2" id="ts-result-content"></div></div>
+                    </div>
+                    <!-- Datetime to Timestamp -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 result-card">
+                        <h3 class="text-base font-semibold text-gray-700 mb-4">日期时间 &rarr; 时间戳</h3>
+                        <div class="space-y-3">
+                            <input id="dt-input" type="text" placeholder="如 2024-01-15 12:00:00" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm">
+                            <select id="dt-tz" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm text-gray-600"><option value="">默认时区</option>
+<option value="Asia/Shanghai">Asia/Shanghai (中国)</option>
+<option value="Asia/Tokyo">Asia/Tokyo (日本)</option>
+<option value="America/New_York">America/New_York (美东)</option>
+<option value="America/Los_Angeles">America/Los_Angeles (美西)</option>
+<option value="Europe/London">Europe/London (伦敦)</option>
+<option value="Europe/Berlin">Europe/Berlin (柏林)</option>
+<option value="UTC">UTC</option></select>
+                            <button onclick="convertDatetime()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium transition-colors">转换</button>
+                        </div>
+                        <div id="dt-result" class="mt-4 hidden"><div class="space-y-2" id="dt-result-content"></div></div>
+                    </div>
+                    <!-- Timezone convert -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 result-card">
+                        <h3 class="text-base font-semibold text-gray-700 mb-4">时区转换</h3>
+                        <div class="space-y-3">
+                            <input id="tz-input" type="text" placeholder="输入日期时间" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm">
+                            <div class="grid grid-cols-2 gap-2">
+                                <select id="tz-from" class="px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm text-gray-600"><option value="Asia/Shanghai">Asia/Shanghai (中国)</option>
+<option value="Asia/Tokyo">Asia/Tokyo (日本)</option>
+<option value="America/New_York">America/New_York (美东)</option>
+<option value="America/Los_Angeles">America/Los_Angeles (美西)</option>
+<option value="Europe/London">Europe/London (伦敦)</option>
+<option value="Europe/Berlin">Europe/Berlin (柏林)</option>
+<option value="UTC">UTC</option></select>
+                                <select id="tz-to" class="px-3 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm text-gray-600">
+                                    <option value="America/New_York">America/New_York (美东)</option>
+                                    <option value="Asia/Shanghai">Asia/Shanghai (中国)</option>
+<option value="Asia/Tokyo">Asia/Tokyo (日本)</option>
+<option value="America/New_York">America/New_York (美东)</option>
+<option value="America/Los_Angeles">America/Los_Angeles (美西)</option>
+<option value="Europe/London">Europe/London (伦敦)</option>
+<option value="Europe/Berlin">Europe/Berlin (柏林)</option>
+<option value="UTC">UTC</option>
+                                </select>
+                            </div>
+                            <button onclick="convertTimezone()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium transition-colors">转换</button>
+                        </div>
+                        <div id="tz-result" class="mt-4 hidden"><div class="space-y-2" id="tz-result-content"></div></div>
+                    </div>
+                    <!-- Format convert -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 result-card">
+                        <h3 class="text-base font-semibold text-gray-700 mb-4">格式转换</h3>
+                        <div class="space-y-3">
+                            <input id="fmt-input" type="text" placeholder="输入日期时间" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm">
+                            <select id="fmt-target" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm text-gray-600">
+                                <option value="standard">标准格式 (2024-01-15 12:00:00)</option>
+                                <option value="slash">斜线格式 (2024/01/15 12:00:00)</option>
+                                <option value="dot">点格式 (2024.01.15 12:00:00)</option>
+                                <option value="compact">紧凑格式 (20240115120000)</option>
+                                <option value="chinese">中文格式</option>
+                                <option value="iso8601">ISO 8601</option>
+                                <option value="date">仅日期</option>
+                                <option value="time">仅时间</option>
+                            </select>
+                            <button onclick="convertFormat()" class="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium transition-colors">转换</button>
+                        </div>
+                        <div id="fmt-result" class="mt-4 hidden"><div class="space-y-2" id="fmt-result-content"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== TOOL 2: JSON Formatter ===== -->
+            <div id="tool-json" class="tool-panel p-6 max-w-7xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+                    JSON 格式化
+                </h2>
+                <!-- Toolbar -->
+                <div class="flex flex-wrap gap-2 mb-4">
+                    <button onclick="jsonFormat()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">格式化</button>
+                    <button onclick="jsonMinify()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">压缩</button>
+                    <button onclick="jsonValidate()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">校验</button>
+                    <button onclick="jsonFormat(true)" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors">键排序</button>
+                    <div class="flex items-center gap-2 ml-auto">
+                        <label class="text-sm text-gray-500">缩进:</label>
+                        <select id="json-indent" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+                            <option value="2">2 空格</option>
+                            <option value="4" selected>4 空格</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 mb-2 block">输入 JSON</label>
+                        <textarea id="json-input" class="w-full h-96 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm bg-white resize-y" placeholder="在此粘贴 JSON..."></textarea>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-medium text-gray-600">输出结果</label>
+                            <button onclick="copyText(document.getElementById('json-output-text').textContent)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                        </div>
+                        <div id="json-output" class="json-output-area w-full h-96 border border-gray-200 rounded-lg bg-gray-900 p-1 overflow-auto">
+                            <pre><code id="json-output-text" class="hljs language-json text-sm"></code></pre>
+                        </div>
+                    </div>
+                </div>
+                <!-- Stats & errors -->
+                <div class="mt-4 flex flex-wrap gap-4">
+                    <div id="json-stats" class="hidden flex gap-4 text-sm text-gray-500">
+                        <span>键数: <strong id="json-stat-keys" class="text-gray-700">0</strong></span>
+                        <span>深度: <strong id="json-stat-depth" class="text-gray-700">0</strong></span>
+                        <span>大小: <strong id="json-stat-size" class="text-gray-700">0 B</strong></span>
+                    </div>
+                    <div id="json-error" class="hidden text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg"></div>
+                </div>
+            </div>
+
+            <!-- ===== TOOL 3: Python Dict to JSON ===== -->
+            <div id="tool-pydict" class="tool-panel p-6 max-w-6xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                    Python Dict 转 JSON
+                </h2>
+                <p class="text-sm text-gray-500 mb-4">支持 True/False/None、单引号、元组、末尾逗号等 Python 语法</p>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 mb-2 block">Python Dict 输入</label>
+                        <textarea id="pydict-input" class="w-full h-80 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm bg-white resize-y" placeholder="{'name': 'test', 'valid': True, 'data': None}"></textarea>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="text-sm font-medium text-gray-600">JSON 输出</label>
+                            <button onclick="copyText(document.getElementById('pydict-output-text').textContent)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                        </div>
+                        <div class="w-full h-80 border border-gray-200 rounded-lg bg-gray-900 p-1 overflow-auto">
+                            <pre><code id="pydict-output-text" class="hljs language-json text-sm"></code></pre>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 flex gap-2">
+                    <button onclick="convertPyDict()" class="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">转换</button>
+                </div>
+                <div id="pydict-error" class="mt-3 hidden text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg"></div>
+            </div>
+
+            <!-- ===== TOOL 4: Translator ===== -->
+            <div id="tool-translate" class="tool-panel p-6 max-w-6xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+                    翻译工具
+                </h2>
+                <div class="flex flex-wrap items-center gap-3 mb-4">
+                    <select id="translate-from" class="px-4 py-2 border border-gray-200 rounded-lg text-sm">
+                        <option value="auto">自动检测</option>
+                        <option value="zh">中文</option>
+                        <option value="en">English</option>
+                    </select>
+                    <button onclick="swapLanguages()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="交换语言">
+                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                    </button>
+                    <select id="translate-to" class="px-4 py-2 border border-gray-200 rounded-lg text-sm">
+                        <option value="en">English</option>
+                        <option value="zh">中文</option>
+                    </select>
+                    <button onclick="doTranslate()" class="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors ml-auto">翻译</button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div class="relative">
+                        <textarea id="translate-input" class="w-full h-64 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm bg-white resize-y" placeholder="输入要翻译的文本..." oninput="updateCharCount()"></textarea>
+                        <div class="absolute bottom-3 right-3 text-xs text-gray-400"><span id="translate-char-count">0</span> 字符</div>
+                    </div>
+                    <div class="relative">
+                        <textarea id="translate-output" class="w-full h-64 px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 text-sm resize-y" readonly placeholder="翻译结果..."></textarea>
+                        <button onclick="copyText(document.getElementById('translate-output').value)" class="copy-btn absolute top-3 right-3 text-xs px-3 py-1 bg-white hover:bg-gray-100 rounded-md text-gray-600 transition-colors border border-gray-200">复制</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== TOOL 5: Markdown Renderer ===== -->
+            <div id="tool-markdown" class="tool-panel p-6 max-w-7xl mx-auto">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                    Markdown 渲染
+                </h2>
+                <!-- Toolbar -->
+                <div class="flex flex-wrap gap-1 mb-3 bg-white rounded-lg border border-gray-200 p-1.5">
+                    <button onclick="mdInsert('**','**')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm font-bold text-gray-600" title="粗体">B</button>
+                    <button onclick="mdInsert('*','*')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm italic text-gray-600" title="斜体">I</button>
+                    <button onclick="mdInsert('## ','')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm font-semibold text-gray-600" title="标题">H</button>
+                    <button onclick="mdInsert('[','](url)')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="链接">&#128279;</button>
+                    <button onclick="mdInsert('![alt](',')')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="图片">&#128247;</button>
+                    <button onclick="mdInsert('`','`')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm font-mono text-gray-600" title="行内代码">&lt;/&gt;</button>
+                    <button onclick="mdInsertBlock('```\n','\n```')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="代码块">{ }</button>
+                    <button onclick="mdInsert('- ','')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="列表">&#8226;</button>
+                    <button onclick="mdInsertTable()" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="表格">&#9638;</button>
+                    <div class="flex-1"></div>
+                    <label class="flex items-center gap-1.5 text-sm text-gray-500 mr-2">
+                        <input type="checkbox" id="md-unsafe" class="rounded"> 允许 HTML
+                    </label>
+                    <button onclick="mdServerRender()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-sm font-medium transition-colors">服务端渲染</button>
+                    <button onclick="copyMdHtml()" class="copy-btn px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-600 transition-colors">复制 HTML</button>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 mb-2 block">Markdown 编辑器</label>
+                        <textarea id="md-input" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm bg-white resize-y" style="height:500px" placeholder="在此输入 Markdown..." oninput="debouncedMdPreview()"></textarea>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 mb-2 block">预览</label>
+                        <div id="md-preview" class="markdown-body w-full border border-gray-200 rounded-lg bg-white p-5 overflow-auto" style="height:500px"></div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+    <!-- Footer -->
+    <footer class="bg-white border-t border-gray-200 py-3 text-center text-xs text-gray-400">
+        Dev Tools v0.1.0
+    </footer>
+
+    <script>
+    // ===== Global Utilities =====
+    function showToast(msg, type = 'error') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        const bgColor = type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-emerald-500' : 'bg-indigo-500';
+        toast.className = `toast ${bgColor} text-white px-4 py-3 rounded-lg shadow-lg text-sm max-w-sm`;
+        toast.textContent = msg;
+        container.appendChild(toast);
+        setTimeout(() => toast.remove(), 3500);
+    }
+
+    function copyText(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            const btn = event.currentTarget || event.target;
+            btn.classList.add('copied');
+            setTimeout(() => btn.classList.remove('copied'), 1500);
+        }).catch(() => showToast('复制失败'));
+    }
+
+    async function apiCall(url, body) {
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || data.message || '请求失败');
+            return data;
+        } catch (e) {
+            showToast(e.message);
+            throw e;
+        }
+    }
+
+    function makeResultRow(label, value) {
+        return `<div class="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-2.5">
+            <span class="text-xs text-gray-400 mr-3">${label}</span>
+            <div class="flex items-center gap-2">
+                <span class="font-mono text-sm text-gray-800 select-all">${escapeHtml(String(value))}</span>
+                <button onclick="copyText('${escapeJs(String(value))}')" class="copy-btn text-xs px-2 py-0.5 bg-white hover:bg-gray-100 border border-gray-200 rounded text-gray-500 transition-colors">复制</button>
+            </div>
+        </div>`;
+    }
+
+    function escapeHtml(s) {
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function escapeJs(s) {
+        return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"').replace(/\n/g,'\\n');
+    }
+
+    // ===== Tool Switching =====
+    function switchTool(name) {
+        document.querySelectorAll('.tool-panel').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.sidebar-item').forEach(b => b.classList.remove('active'));
+        const panel = document.getElementById('tool-' + name);
+        if (panel) panel.classList.add('active');
+        document.querySelectorAll(`[data-tool="${name}"]`).forEach(b => b.classList.add('active'));
+    }
+
+    // ===== TOOL 1: Time Converter =====
+    let currentTimeInterval;
+    function updateCurrentTime() {
+        apiCall('/api/time/now', {}).then(data => {
+            document.getElementById('ct-unix-sec').textContent = data.unix_sec;
+            document.getElementById('ct-unix-ms').textContent = data.unix_ms;
+            document.getElementById('ct-local').textContent = data.local;
+            document.getElementById('ct-utc').textContent = data.utc;
+            document.getElementById('ct-iso').textContent = data.iso8601;
+            document.getElementById('ct-weekday').textContent = data.weekday;
+        }).catch(() => {
+            // Fallback to client-side time
+            const now = new Date();
+            document.getElementById('ct-unix-sec').textContent = Math.floor(now.getTime() / 1000);
+            document.getElementById('ct-unix-ms').textContent = now.getTime();
+            document.getElementById('ct-local').textContent = now.toLocaleString('zh-CN');
+            document.getElementById('ct-utc').textContent = now.toUTCString();
+            document.getElementById('ct-iso').textContent = now.toISOString();
+            const weekdays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
+            document.getElementById('ct-weekday').textContent = weekdays[now.getDay()];
+        });
+    }
+
+    function startCurrentTime() {
+        updateCurrentTime();
+        currentTimeInterval = setInterval(updateCurrentTime, 1000);
+    }
+
+    async function convertTimestamp() {
+        const input = document.getElementById('ts-input').value.trim();
+        if (!input) return showToast('请输入时间戳');
+        const tz = document.getElementById('ts-tz').value;
+        const body = { timestamp: Number(input) };
+        if (tz) body.timezone = tz;
+        try {
+            const data = await apiCall('/api/time/timestamp-to-datetime', body);
+            const el = document.getElementById('ts-result-content');
+            el.innerHTML = [
+                makeResultRow('本地时间', data.local),
+                makeResultRow('UTC', data.utc),
+                data.custom_tz ? makeResultRow('指定时区', data.custom_tz) : '',
+                makeResultRow('星期', data.weekday),
+                makeResultRow('ISO 8601', data.iso8601),
+                data.relative ? makeResultRow('相对时间', data.relative) : '',
+            ].join('');
+            document.getElementById('ts-result').classList.remove('hidden');
+        } catch(e) {}
+    }
+
+    async function convertDatetime() {
+        const input = document.getElementById('dt-input').value.trim();
+        if (!input) return showToast('请输入日期时间');
+        const tz = document.getElementById('dt-tz').value;
+        const body = { datetime: input };
+        if (tz) body.from_timezone = tz;
+        try {
+            const data = await apiCall('/api/time/datetime-to-timestamp', body);
+            const el = document.getElementById('dt-result-content');
+            el.innerHTML = [
+                makeResultRow('Unix 秒', data.unix_sec),
+                makeResultRow('Unix 毫秒', data.unix_ms),
+                makeResultRow('UTC', data.utc),
+                makeResultRow('本地', data.local),
+                makeResultRow('ISO 8601', data.iso8601),
+            ].join('');
+            document.getElementById('dt-result').classList.remove('hidden');
+        } catch(e) {}
+    }
+
+    async function convertTimezone() {
+        const input = document.getElementById('tz-input').value.trim();
+        if (!input) return showToast('请输入日期时间');
+        try {
+            const data = await apiCall('/api/time/timezone-convert', {
+                datetime: input,
+                from_tz: document.getElementById('tz-from').value,
+                to_tz: document.getElementById('tz-to').value
+            });
+            const el = document.getElementById('tz-result-content');
+            el.innerHTML = [
+                makeResultRow(data.from_tz, data.from),
+                makeResultRow(data.to_tz, data.to),
+            ].join('');
+            document.getElementById('tz-result').classList.remove('hidden');
+        } catch(e) {}
+    }
+
+    async function convertFormat() {
+        const input = document.getElementById('fmt-input').value.trim();
+        if (!input) return showToast('请输入日期时间');
+        try {
+            const data = await apiCall('/api/time/format-convert', {
+                datetime: input,
+                target_format: document.getElementById('fmt-target').value
+            });
+            const el = document.getElementById('fmt-result-content');
+            el.innerHTML = makeResultRow('结果', data.result);
+            document.getElementById('fmt-result').classList.remove('hidden');
+        } catch(e) {}
+    }
+
+    // ===== TOOL 2: JSON Formatter =====
+    function updateJsonOutput(text, lang = 'json') {
+        const el = document.getElementById('json-output-text');
+        el.textContent = text;
+        el.className = `hljs language-${lang} text-sm`;
+        hljs.highlightElement(el);
+    }
+
+    async function jsonFormat(sortKeys = false) {
+        const input = document.getElementById('json-input').value;
+        if (!input.trim()) return showToast('请输入 JSON');
+        const indent = parseInt(document.getElementById('json-indent').value);
+        try {
+            const data = await apiCall('/api/json/format', {
+                input: input,
+                indent: indent,
+                sort_keys: sortKeys
+            });
+            if (data.valid) {
+                updateJsonOutput(data.result);
+                document.getElementById('json-error').classList.add('hidden');
+                if (data.stats) {
+                    document.getElementById('json-stats').classList.remove('hidden');
+                    document.getElementById('json-stat-keys').textContent = data.stats.keys;
+                    document.getElementById('json-stat-depth').textContent = data.stats.depth;
+                    document.getElementById('json-stat-size').textContent = data.stats.size_bytes + ' B';
+                }
+            } else {
+                showJsonError(data.error);
+            }
+        } catch(e) {}
+    }
+
+    async function jsonMinify() {
+        const input = document.getElementById('json-input').value;
+        if (!input.trim()) return showToast('请输入 JSON');
+        try {
+            const data = await apiCall('/api/json/minify', { input: input });
+            updateJsonOutput(data.result);
+            document.getElementById('json-error').classList.add('hidden');
+            showToast(`原始: ${data.original_size} B -> 压缩: ${data.minified_size} B`, 'success');
+        } catch(e) {}
+    }
+
+    async function jsonValidate() {
+        const input = document.getElementById('json-input').value;
+        if (!input.trim()) return showToast('请输入 JSON');
+        try {
+            const data = await apiCall('/api/json/validate', { input: input });
+            if (data.valid) {
+                showToast('JSON 格式正确!', 'success');
+                document.getElementById('json-error').classList.add('hidden');
+            } else {
+                let errMsg = data.error || '格式错误';
+                if (data.error_position) errMsg += ` (位置: ${data.error_position})`;
+                showJsonError(errMsg);
+            }
+        } catch(e) {}
+    }
+
+    function showJsonError(msg) {
+        const el = document.getElementById('json-error');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+    }
+
+    // ===== TOOL 3: Python Dict to JSON =====
+    async function convertPyDict() {
+        const input = document.getElementById('pydict-input').value;
+        if (!input.trim()) return showToast('请输入 Python Dict');
+        try {
+            const data = await apiCall('/api/json/py-dict', { input: input });
+            if (data.valid) {
+                const el = document.getElementById('pydict-output-text');
+                el.textContent = data.result;
+                el.className = 'hljs language-json text-sm';
+                hljs.highlightElement(el);
+                document.getElementById('pydict-error').classList.add('hidden');
+            } else {
+                const errEl = document.getElementById('pydict-error');
+                errEl.textContent = data.error || '转换失败';
+                errEl.classList.remove('hidden');
+            }
+        } catch(e) {}
+    }
+
+    // ===== TOOL 4: Translator =====
+    function updateCharCount() {
+        const text = document.getElementById('translate-input').value;
+        document.getElementById('translate-char-count').textContent = text.length;
+    }
+
+    function swapLanguages() {
+        const fromEl = document.getElementById('translate-from');
+        const toEl = document.getElementById('translate-to');
+        // Swap the output text to input
+        const output = document.getElementById('translate-output').value;
+        if (output) {
+            document.getElementById('translate-input').value = output;
+            document.getElementById('translate-output').value = '';
+            updateCharCount();
+        }
+        // Swap language selects if possible
+        const fromVal = fromEl.value;
+        const toVal = toEl.value;
+        if (fromVal !== 'auto') {
+            // Find matching options
+            for (let opt of toEl.options) {
+                if (opt.value === fromVal) { toEl.value = fromVal; break; }
+            }
+            for (let opt of fromEl.options) {
+                if (opt.value === toVal) { fromEl.value = toVal; break; }
+            }
+        }
+    }
+
+    async function doTranslate() {
+        const text = document.getElementById('translate-input').value.trim();
+        if (!text) return showToast('请输入要翻译的文本');
+        const from = document.getElementById('translate-from').value;
+        const to = document.getElementById('translate-to').value;
+        const body = { text: text, to: to };
+        if (from !== 'auto') body.from = from;
+        try {
+            const data = await apiCall('/api/translate/translate', body);
+            document.getElementById('translate-output').value = data.result;
+        } catch(e) {}
+    }
+
+    // ===== TOOL 5: Markdown Renderer =====
+    let mdDebounceTimer;
+    function debouncedMdPreview() {
+        clearTimeout(mdDebounceTimer);
+        mdDebounceTimer = setTimeout(mdPreview, 300);
+    }
+
+    function mdPreview() {
+        const input = document.getElementById('md-input').value;
+        if (!input.trim()) {
+            document.getElementById('md-preview').innerHTML = '<p class="text-gray-400 italic">在左侧输入 Markdown 开始预览...</p>';
+            return;
+        }
+        try {
+            const html = marked.parse(input);
+            document.getElementById('md-preview').innerHTML = html;
+            // Highlight code blocks
+            document.querySelectorAll('#md-preview pre code').forEach(block => {
+                hljs.highlightElement(block);
+            });
+        } catch(e) {
+            document.getElementById('md-preview').innerHTML = '<p class="text-red-500">渲染错误: ' + escapeHtml(e.message) + '</p>';
+        }
+    }
+
+    async function mdServerRender() {
+        const input = document.getElementById('md-input').value;
+        if (!input.trim()) return showToast('请输入 Markdown');
+        const unsafeHtml = document.getElementById('md-unsafe').checked;
+        try {
+            const data = await apiCall('/api/markdown/render', {
+                markdown: input,
+                unsafe_html: unsafeHtml
+            });
+            document.getElementById('md-preview').innerHTML = data.html;
+            document.querySelectorAll('#md-preview pre code').forEach(block => {
+                hljs.highlightElement(block);
+            });
+            showToast('服务端渲染完成', 'success');
+        } catch(e) {}
+    }
+
+    function mdInsert(before, after) {
+        const ta = document.getElementById('md-input');
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const selected = ta.value.substring(start, end);
+        const replacement = before + selected + after;
+        ta.setRangeText(replacement, start, end, 'end');
+        ta.focus();
+        debouncedMdPreview();
+    }
+
+    function mdInsertBlock(before, after) {
+        const ta = document.getElementById('md-input');
+        const start = ta.selectionStart;
+        const end = ta.selectionEnd;
+        const selected = ta.value.substring(start, end);
+        const replacement = before + selected + after;
+        ta.setRangeText(replacement, start, end, 'end');
+        ta.focus();
+        debouncedMdPreview();
+    }
+
+    function mdInsertTable() {
+        const table = "| 列1 | 列2 | 列3 |\n|------|------|------|\n| 内容 | 内容 | 内容 |\n";
+        mdInsert(table, '');
+    }
+
+    function copyMdHtml() {
+        const html = document.getElementById('md-preview').innerHTML;
+        copyText(html);
+    }
+
+    // ===== marked.js configuration =====
+    function initMarked() {
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+            });
+        }
+    }
+
+    // ===== Init =====
+    document.addEventListener('DOMContentLoaded', () => {
+        startCurrentTime();
+        initMarked();
+    });
+    </script>
+</body>
+</html>
