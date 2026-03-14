@@ -72,19 +72,18 @@
         .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 2em 0; }
         #mobile-nav { scrollbar-width: none; }
         #mobile-nav::-webkit-scrollbar { display: none; }
-        .json-output-area { overflow: hidden; }
-        .json-code-container { display: flex; background: #1e1e1e; border-radius: 8px; overflow: hidden; height: 100%; }
+                .json-code-container { display: flex; background: #f8fafc; border-radius: 8px; overflow: hidden; height: 100%; border: 1px solid #e2e8f0; }
         .json-line-numbers {
-            flex-shrink: 0; padding: 12px 0; background: #252526; text-align: right;
-            user-select: none; border-right: 1px solid #404040; overflow-y: hidden;
+            flex-shrink: 0; padding: 12px 0; background: #f1f5f9; text-align: right;
+            user-select: none; border-right: 1px solid #e2e8f0; overflow-y: hidden;
         }
         .json-line-numbers .line-num {
             padding: 0 12px; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-            font-size: 13px; line-height: 1.5; color: #858585;
+            font-size: 13px; line-height: 1.5; color: #64748b;
         }
-        .json-code-content { flex: 1; overflow: auto; }
-        .json-code-content pre { margin: 0; padding: 12px; }
-        .json-code-content code { font-size: 13px; line-height: 1.5; }
+        .json-code-content { flex: 1; overflow: auto; background: #f8fafc; }
+        .json-code-content pre { margin: 0; padding: 12px; background: transparent; }
+        .json-code-content code { font-size: 13px; line-height: 1.5; color: #1e293b; }
         /* Input with line numbers */
         .json-input-container { display: flex; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; background: #fafafa; }
         .json-input-container:focus-within { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
