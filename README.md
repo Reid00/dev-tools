@@ -17,7 +17,7 @@
 
 ### 环境要求
 
-- Rust 1.75+ (edition 2024)
+- Rust 1.90+ (edition 2024)
 - Cargo
 
 ### 安装运行
