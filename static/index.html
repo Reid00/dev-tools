@@ -13,6 +13,11 @@
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/javascript.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/bash.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/rust.min.js"></script>
+    <!-- Markdown editor extras -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <link rel="stylesheet" id="hljs-light-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+    <link rel="stylesheet" id="hljs-dark-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" disabled>
     <script>
         tailwind.config = {
             theme: {
@@ -96,6 +101,79 @@
         .json-input-wrapper textarea {
             flex: 1; border: none; outline: none; resize: none; padding: 12px;
             font-size: 13px; line-height: 1.5; background: #fafafa; overflow: auto;
+        }
+        /* Markdown Editor Enhancements */
+        .md-container { display: flex; flex-direction: column; height: calc(100vh - 180px); min-height: 500px; }
+        .md-container.md-layout-vertical { flex-direction: row; }
+        .md-container.md-fullscreen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 100; background: var(--md-bg, #fff); height: 100vh; }
+        .md-panel { flex: 1; display: flex; flex-direction: column; min-height: 200px; overflow: hidden; }
+        .md-panel-header { padding: 8px 12px; background: var(--md-header-bg, #f8fafc); border-bottom: 1px solid var(--md-border, #e5e7eb); display: flex; align-items: center; justify-content: space-between; }
+        .md-panel-content { flex: 1; overflow: auto; position: relative; }
+        .md-editor { width: 100%; height: 100%; border: none; outline: none; resize: none; padding: 16px; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; font-size: 14px; line-height: 1.7; background: var(--md-bg, #fff); color: var(--md-text, #1f2937); }
+        .md-preview-content { padding: 16px; line-height: 1.7; background: var(--md-bg, #fff); color: var(--md-text, #1f2937); min-height: 100%; }
+        .md-divider { flex-shrink: 0; background: var(--md-border, #e5e7eb); cursor: col-resize; width: 4px; transition: background 0.2s; }
+        .md-divider:hover { background: #6366f1; }
+        .md-container.md-layout-vertical .md-divider { cursor: col-resize; width: 4px; height: auto; }
+        .md-container:not(.md-layout-vertical) .md-divider { cursor: row-resize; height: 4px; width: auto; }
+        /* TOC Sidebar */
+        .md-toc { position: fixed; right: 16px; top: 80px; width: 220px; max-height: 400px; overflow-y: auto; background: var(--md-bg, #fff); border: 1px solid var(--md-border, #e5e7eb); border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 50; display: none; }
+        .md-toc.visible { display: block; }
+        .md-toc-header { padding: 10px 14px; font-weight: 600; border-bottom: 1px solid var(--md-border, #e5e7eb); display: flex; justify-content: space-between; align-items: center; }
+        .md-toc-list { padding: 8px 0; }
+        .md-toc-item { padding: 4px 14px; cursor: pointer; font-size: 13px; color: var(--md-text, #4b5563); transition: all 0.15s; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .md-toc-item:hover { background: var(--md-hover, #f3f4f6); color: #6366f1; }
+        .md-toc-item.h1 { padding-left: 14px; font-weight: 600; }
+        .md-toc-item.h2 { padding-left: 24px; }
+        .md-toc-item.h3 { padding-left: 34px; }
+        .md-toc-item.h4 { padding-left: 44px; }
+        .md-toc-item.h5 { padding-left: 54px; }
+        .md-toc-item.h6 { padding-left: 64px; font-size: 12px; }
+        /* Code block enhancements */
+        .md-preview-content pre { position: relative; margin: 1.5em 0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .md-preview-content pre code { display: block; padding: 20px; overflow-x: auto; font-size: 14px; line-height: 1.6; }
+        .md-code-block-wrapper { border-radius: 12px; overflow: hidden; margin: 1.5em 0; background: #1a1b26; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .md-code-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; background: linear-gradient(to right, #1e293b, #0f172a); border-bottom: 1px solid #334155; font-size: 12px; color: #94a3b8; }
+        .md-code-lang { font-family: 'JetBrains Mono', monospace; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; color: #60a5fa; font-weight: 500; }
+        .md-code-copy { background: linear-gradient(to right, #374151, #1f2937); border: 1px solid #475569; color: #94a3b8; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; transition: all 0.2s; display: flex; align-items: center; gap: 4px; }
+        .md-code-copy:hover { background: linear-gradient(to right, #4b5563, #374151); color: #fff; border-color: #6b7280; }
+        .md-code-copy.copied { background: linear-gradient(to right, #059669, #047857); border-color: #10b981; color: #fff; }
+        .md-code-copy svg { width: 14px; height: 14px; }
+        .md-code-lines { position: absolute; left: 0; top: 0; bottom: 0; width: 50px; padding-top: 20px; padding-bottom: 20px; background: rgba(0,0,0,0.2); text-align: right; user-select: none; pointer-events: none; display: none; border-right: 1px solid rgba(255,255,255,0.1); }
+        .md-code-lines.visible { display: block; }
+        .md-code-line-num { padding-right: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; color: rgba(255,255,255,0.25); }
+        .md-preview-content pre.hljs { background: #1a1b26 !important; }
+        .md-preview-content pre.hljs code { background: transparent !important; }
+        /* Inline code */
+        .md-preview-content code:not(pre code) { background: linear-gradient(to right, #f1f5f9, #e2e8f0); padding: 3px 8px; border-radius: 6px; font-size: 0.9em; color: #c7254e; border: 1px solid #e2e8f0; font-weight: 500; }
+        .dark .md-preview-content code:not(pre code) { background: linear-gradient(to right, #374151, #1f2937); color: #f9a8d4; border-color: #4b5563; }
+        /* Status bar */
+        .md-status { display: flex; align-items: center; gap: 12px; padding: 4px 12px; background: var(--md-header-bg, #f8fafc); border-top: 1px solid var(--md-border, #e5e7eb); font-size: 12px; color: #6b7280; }
+        .md-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #22c55e; }
+        .md-status-dot.saving { background: #f59e0b; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        /* Dark mode */
+        .dark { --md-bg: #1f2937; --md-text: #e5e7eb; --md-border: #374151; --md-header-bg: #111827; --md-hover: #374151; }
+        .dark .markdown-body code { background: #374151; }
+        .dark .markdown-body pre { background: #111827 !important; }
+        .dark .markdown-body th { background: #374151; }
+        .dark .markdown-body td, .dark .markdown-body th { border-color: #4b5563; }
+        .dark .markdown-body blockquote { border-color: #6366f1; color: #9ca3af; }
+        .dark .markdown-body h1, .dark .markdown-body h2 { border-color: #374151; }
+        /* Modal for export */
+        .md-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 200; }
+        .md-modal-content { background: var(--md-bg, #fff); border-radius: 12px; padding: 24px; max-width: 400px; width: 90%; box-shadow: 0 20px 40px rgba(0,0,0,0.2); }
+        .md-modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+        .md-modal-buttons { display: flex; gap: 12px; margin-top: 20px; }
+        .md-modal-buttons button { flex: 1; padding: 10px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+        .md-btn-primary { background: #6366f1; color: white; border: none; }
+        .md-btn-primary:hover { background: #4f46e5; }
+        .md-btn-secondary { background: transparent; border: 1px solid var(--md-border, #e5e7eb); color: var(--md-text, #374151); }
+        .md-btn-secondary:hover { background: var(--md-hover, #f3f4f6); }
+        /* Responsive */
+        @media (max-width: 768px) {
+            .md-container { height: calc(100vh - 200px); }
+            .md-toc { display: none !important; }
+            .md-panel-header { padding: 6px 8px; }
         }
     </style>
 </head>
@@ -400,38 +478,118 @@
             </div>
 
             <!-- ===== TOOL 5: Markdown Renderer ===== -->
-            <div id="tool-markdown" class="tool-panel p-6 max-w-7xl mx-auto">
-                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                    Markdown 渲染
-                </h2>
-                <!-- Toolbar -->
-                <div class="flex flex-wrap gap-1 mb-3 bg-white rounded-lg border border-gray-200 p-1.5">
-                    <button onclick="mdInsert('**','**')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm font-bold text-gray-600" title="粗体">B</button>
-                    <button onclick="mdInsert('*','*')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm italic text-gray-600" title="斜体">I</button>
-                    <button onclick="mdInsert('## ','')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm font-semibold text-gray-600" title="标题">H</button>
-                    <button onclick="mdInsert('[','](url)')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="链接">&#128279;</button>
-                    <button onclick="mdInsert('![alt](',')')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="图片">&#128247;</button>
-                    <button onclick="mdInsert('`','`')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm font-mono text-gray-600" title="行内代码">&lt;/&gt;</button>
-                    <button onclick="mdInsertBlock('```\n','\n```')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="代码块">{ }</button>
-                    <button onclick="mdInsert('- ','')" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="列表">&#8226;</button>
-                    <button onclick="mdInsertTable()" class="px-2.5 py-1.5 hover:bg-gray-100 rounded text-sm text-gray-600" title="表格">&#9638;</button>
+            <div id="tool-markdown" class="tool-panel p-4 md:p-6 max-w-7xl mx-auto">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-xl md:text-2xl font-bold text-gray-800 flex items-center gap-2">
+                        <svg class="w-6 h-6 md:w-7 md:h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        Markdown 编辑器
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <span id="md-save-status" class="text-xs text-gray-400 hidden">已保存</span>
+                    </div>
+                </div>
+                <!-- Enhanced Toolbar -->
+                <div class="flex flex-wrap items-center gap-1 mb-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-1.5">
+                    <!-- Format buttons -->
+                    <button onclick="mdInsert('**','**')" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-bold text-gray-600 dark:text-gray-300" title="粗体 (Ctrl+B)">B</button>
+                    <button onclick="mdInsert('*','*')" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm italic text-gray-600 dark:text-gray-300" title="斜体 (Ctrl+I)">I</button>
+                    <button onclick="mdInsert('## ','')" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-semibold text-gray-600 dark:text-gray-300" title="标题">H</button>
+                    <button onclick="mdInsert('[','](url)')" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="链接 (Ctrl+K)">&#128279;</button>
+                    <button onclick="mdInsert('![alt](',')')" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="图片">&#128247;</button>
+                    <button onclick="mdInsert('`','`')" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm font-mono text-gray-600 dark:text-gray-300" title="行内代码">&lt;/&gt;</button>
+                    <button onclick="mdInsertBlock('```\n','\n```')" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="代码块">{ }</button>
+                    <button onclick="mdInsert('- ','')" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="列表">&#8226;</button>
+                    <button onclick="mdInsertTable()" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="表格">&#9638;</button>
+                    <div class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+                    <!-- View controls -->
+                    <button onclick="mdToggleLayout()" id="md-layout-btn" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="切换布局">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/></svg>
+                    </button>
+                    <button onclick="mdToggleFullscreen()" id="md-fullscreen-btn" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="全屏">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+                    </button>
+                    <button onclick="mdToggleToc()" id="md-toc-btn" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="目录">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+                    </button>
+                    <button onclick="mdToggleTheme()" id="md-theme-btn" class="px-2.5 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="深色模式">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                    </button>
                     <div class="flex-1"></div>
-                    <label class="flex items-center gap-1.5 text-sm text-gray-500 mr-2">
+                    <!-- Options -->
+                    <label class="hidden md:flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 mr-2">
                         <input type="checkbox" id="md-unsafe" class="rounded"> 允许 HTML
                     </label>
+                    <label class="hidden md:flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400 mr-2">
+                        <input type="checkbox" id="md-sync-scroll" class="rounded" checked> 同步滚动
+                    </label>
+                    <!-- Save/Export -->
+                    <button onclick="mdSaveDocument()" class="px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="保存 (Ctrl+S)">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/></svg>
+                    </button>
+                    <button onclick="mdLoadDocument()" class="px-3 py-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm text-gray-600 dark:text-gray-300" title="加载">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    </button>
+                    <div class="relative">
+                        <button onclick="mdToggleExportMenu()" class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-sm font-medium transition-colors flex items-center gap-1">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                            导出
+                        </button>
+                        <div id="md-export-menu" class="absolute right-0 top-full mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-20 hidden min-w-[140px]">
+                            <button onclick="mdExportMarkdown()" class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">导出 Markdown</button>
+                            <button onclick="mdExportHtml()" class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">导出 HTML</button>
+                            <button onclick="mdExportPdf()" class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">导出 PDF</button>
+                            <button onclick="mdExportImage()" class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">导出图片</button>
+                            <hr class="my-1 border-gray-200 dark:border-gray-700">
+                            <button onclick="copyMdHtml()" class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">复制 HTML</button>
+                        </div>
+                    </div>
                     <button onclick="mdServerRender()" class="px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded text-sm font-medium transition-colors">服务端渲染</button>
-                    <button onclick="copyMdHtml()" class="copy-btn px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded text-sm text-gray-600 transition-colors">复制 HTML</button>
                 </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                        <label class="text-sm font-medium text-gray-600 mb-2 block">Markdown 编辑器</label>
-                        <textarea id="md-input" class="w-full px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm bg-white resize-y" style="height:500px" placeholder="在此输入 Markdown..." oninput="debouncedMdPreview()"></textarea>
+                <!-- Editor Container -->
+                <div id="md-container" class="md-container md-layout-vertical bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+                    <!-- Editor Panel -->
+                    <div id="md-editor-panel" class="md-panel">
+                        <div class="md-panel-header">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">编辑器</span>
+                            <div class="flex items-center gap-2">
+                                <button onclick="mdClearConfirm()" class="text-xs text-gray-500 hover:text-red-500 transition-colors">清空</button>
+                            </div>
+                        </div>
+                        <div class="md-panel-content">
+                            <textarea id="md-input" class="md-editor" placeholder="在此输入 Markdown...&#10;&#10;快捷键:&#10;Ctrl+B 粗体&#10;Ctrl+I 斜体&#10;Ctrl+K 链接&#10;Ctrl+S 保存" oninput="onMdInput()"></textarea>
+                        </div>
                     </div>
-                    <div>
-                        <label class="text-sm font-medium text-gray-600 mb-2 block">预览</label>
-                        <div id="md-preview" class="markdown-body w-full border border-gray-200 rounded-lg bg-white p-5 overflow-auto" style="height:500px"></div>
+                    <!-- Divider -->
+                    <div id="md-divider" class="md-divider" onmousedown="startMdResize(event)"></div>
+                    <!-- Preview Panel -->
+                    <div id="md-preview-panel" class="md-panel">
+                        <div class="md-panel-header">
+                            <span class="text-sm font-medium text-gray-600 dark:text-gray-300">预览</span>
+                            <div class="flex items-center gap-2">
+                                <span id="md-word-count" class="text-xs text-gray-400">0 字</span>
+                            </div>
+                        </div>
+                        <div id="md-preview-scroll" class="md-panel-content" onscroll="onPreviewScroll()">
+                            <div id="md-preview" class="markdown-body md-preview-content"></div>
+                        </div>
                     </div>
+                </div>
+                <!-- Status Bar -->
+                <div class="md-status rounded-b-lg border border-t-0 border-gray-200 dark:border-gray-700">
+                    <div id="md-status-dot" class="md-status-dot"></div>
+                    <span id="md-status-text">就绪</span>
+                    <div class="flex-1"></div>
+                    <span id="md-last-save" class="text-gray-400"></span>
+                </div>
+                <!-- TOC Sidebar -->
+                <div id="md-toc" class="md-toc">
+                    <div class="md-toc-header">
+                        <span>目录</span>
+                        <button onclick="mdToggleToc()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
+                    <div id="md-toc-list" class="md-toc-list"></div>
                 </div>
             </div>
 
@@ -1003,29 +1161,428 @@
 
     // ===== TOOL 5: Markdown Renderer =====
     let mdDebounceTimer;
-    function debouncedMdPreview() {
+    let mdAutoSaveTimer;
+    let mdIsFullscreen = false;
+    let mdIsDark = false;
+    let mdIsLayoutVertical = true; // true = left-right, false = top-bottom
+    let mdTocVisible = false;
+    let mdScrollSyncEnabled = true;
+    let mdIsResizing = false;
+
+    function initMarkdownEditor() {
+        // Load saved preferences
+        const savedTheme = localStorage.getItem('md_theme');
+        if (savedTheme === 'dark') {
+            mdIsDark = true;
+            document.body.classList.add('dark');
+            updateThemeIcons();
+        }
+        const savedLayout = localStorage.getItem('md_layout');
+        if (savedLayout === 'horizontal') {
+            mdIsLayoutVertical = false;
+            updateLayoutIcon();
+        }
+        // Load saved content
+        const savedContent = localStorage.getItem('md_content');
+        if (savedContent) {
+            document.getElementById('md-input').value = savedContent;
+        }
+        // Start auto-save
+        startMdAutoSave();
+        // Init marked
+        initMarked();
+        // Initial preview
+        mdPreview();
+        // Keyboard shortcuts
+        document.getElementById('md-input').addEventListener('keydown', mdHandleKeydown);
+        // Close export menu on click outside
+        document.addEventListener('click', (e) => {
+            const menu = document.getElementById('md-export-menu');
+            if (menu && !menu.contains(e.target) && !e.target.closest('[onclick="mdToggleExportMenu()"]')) {
+                menu.classList.add('hidden');
+            }
+        });
+        // ESC to exit fullscreen
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && mdIsFullscreen) {
+                mdToggleFullscreen();
+            }
+        });
+        // Scroll sync
+        const editorScroll = document.getElementById('md-input');
+        editorScroll.addEventListener('scroll', onEditorScroll);
+    }
+
+    function onMdInput() {
         clearTimeout(mdDebounceTimer);
         mdDebounceTimer = setTimeout(mdPreview, 300);
+        updateWordCount();
     }
 
     function mdPreview() {
         const input = document.getElementById('md-input').value;
+        const preview = document.getElementById('md-preview');
         if (!input.trim()) {
-            document.getElementById('md-preview').innerHTML = '<p class="text-gray-400 italic">在左侧输入 Markdown 开始预览...</p>';
+            preview.innerHTML = '<p class="text-gray-400 dark:text-gray-500 italic">在左侧输入 Markdown 开始预览...</p>';
+            updateToc([]);
             return;
         }
         try {
             const html = marked.parse(input);
-            document.getElementById('md-preview').innerHTML = html;
-            // Highlight code blocks
-            document.querySelectorAll('#md-preview pre code').forEach(block => {
-                hljs.highlightElement(block);
-            });
+            preview.innerHTML = html;
+            // Enhance code blocks
+            enhanceCodeBlocks();
+            // Update TOC
+            updateToc(extractHeadings(input));
         } catch(e) {
-            document.getElementById('md-preview').innerHTML = '<p class="text-red-500">渲染错误: ' + escapeHtml(e.message) + '</p>';
+            preview.innerHTML = '<p class="text-red-500">渲染错误: ' + escapeHtml(e.message) + '</p>';
         }
     }
 
+    function enhanceCodeBlocks() {
+        document.querySelectorAll('#md-preview pre').forEach((pre, idx) => {
+            if (pre.querySelector('.md-code-header')) return; // Already enhanced
+            const code = pre.querySelector('code');
+            if (!code) return;
+            // Get language
+            let lang = '';
+            if (code.className.match(/language-(\w+)/)) {
+                lang = RegExp.$1;
+            }
+            // Create wrapper with new class
+            const wrapper = document.createElement('div');
+            wrapper.className = 'md-code-block-wrapper';
+            pre.parentNode.insertBefore(wrapper, pre);
+            wrapper.appendChild(pre);
+            // Add header with improved styling
+            const header = document.createElement('div');
+            header.className = 'md-code-header';
+            header.innerHTML = `
+                <span class="md-code-lang">${lang || 'code'}</span>
+                <button class="md-code-copy" onclick="copyCodeBlock(this)">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span>复制</span>
+                </button>
+            `;
+            wrapper.insertBefore(header, pre);
+            // Apply syntax highlighting
+            pre.classList.add('hljs');
+            if (code.textContent) {
+                hljs.highlightElement(code);
+            }
+        });
+    }
+
+    function copyCodeBlock(btn) {
+        const pre = btn.closest('.md-code-block-wrapper').querySelector('pre code');
+        navigator.clipboard.writeText(pre.textContent).then(() => {
+            const span = btn.querySelector('span');
+            span.textContent = '已复制';
+            btn.classList.add('copied');
+            setTimeout(() => {
+                span.textContent = '复制';
+                btn.classList.remove('copied');
+            }, 2000);
+        });
+    }
+
+    function extractHeadings(md) {
+        const headings = [];
+        const lines = md.split('\n');
+        lines.forEach((line, idx) => {
+            const match = line.match(/^(#{1,6})\s+(.+)$/);
+            if (match) {
+                headings.push({
+                    level: match[1].length,
+                    text: match[2].trim(),
+                    id: 'heading-' + idx
+                });
+            }
+        });
+        return headings;
+    }
+
+    function updateToc(headings) {
+        const tocList = document.getElementById('md-toc-list');
+        if (headings.length === 0) {
+            tocList.innerHTML = '<div class="px-4 py-2 text-sm text-gray-400">无标题</div>';
+            return;
+        }
+        tocList.innerHTML = headings.map((h, idx) => {
+            return `<div class="md-toc-item h${h.level}" onclick="scrollToHeading(${idx})">${escapeHtml(h.text)}</div>`;
+        }).join('');
+        // Add IDs to headings in preview
+        const previewHeadings = document.querySelectorAll('#md-preview h1, #md-preview h2, #md-preview h3, #md-preview h4, #md-preview h5, #md-preview h6');
+        previewHeadings.forEach((h, idx) => {
+            h.id = 'preview-heading-' + idx;
+        });
+    }
+
+    function scrollToHeading(idx) {
+        const heading = document.getElementById('preview-heading-' + idx);
+        if (heading) {
+            const scrollContainer = document.getElementById('md-preview-scroll');
+            scrollContainer.scrollTo({
+                top: heading.offsetTop - 20,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    // Scroll sync
+    function onEditorScroll() {
+        if (!mdScrollSyncEnabled) return;
+        const editor = document.getElementById('md-input');
+        const preview = document.getElementById('md-preview-scroll');
+        const ratio = editor.scrollTop / (editor.scrollHeight - editor.clientHeight);
+        preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
+    }
+
+    function onPreviewScroll() {
+        if (!mdScrollSyncEnabled) return;
+        // Optional: reverse sync
+    }
+
+    // Layout & View
+    function mdToggleLayout() {
+        const container = document.getElementById('md-container');
+        mdIsLayoutVertical = !mdIsLayoutVertical;
+        container.classList.toggle('md-layout-vertical', mdIsLayoutVertical);
+        localStorage.setItem('md_layout', mdIsLayoutVertical ? 'vertical' : 'horizontal');
+        updateLayoutIcon();
+    }
+
+    function updateLayoutIcon() {
+        // Could update icon state if needed
+    }
+
+    function mdToggleFullscreen() {
+        const container = document.getElementById('md-container');
+        mdIsFullscreen = !mdIsFullscreen;
+        container.classList.toggle('md-fullscreen', mdIsFullscreen);
+        const btn = document.getElementById('md-fullscreen-btn');
+        if (mdIsFullscreen) {
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+        } else {
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>';
+        }
+    }
+
+    function mdToggleToc() {
+        mdTocVisible = !mdTocVisible;
+        document.getElementById('md-toc').classList.toggle('visible', mdTocVisible);
+    }
+
+    function mdToggleTheme() {
+        mdIsDark = !mdIsDark;
+        document.body.classList.toggle('dark', mdIsDark);
+        localStorage.setItem('md_theme', mdIsDark ? 'dark' : 'light');
+        updateThemeIcons();
+        // Update highlight.js theme
+        document.getElementById('hljs-light-theme').disabled = mdIsDark;
+        document.getElementById('hljs-dark-theme').disabled = !mdIsDark;
+    }
+
+    function updateThemeIcons() {
+        const btn = document.getElementById('md-theme-btn');
+        if (mdIsDark) {
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>';
+        } else {
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>';
+        }
+    }
+
+    // Divider resize
+    function startMdResize(e) {
+        e.preventDefault();
+        mdIsResizing = true;
+        document.addEventListener('mousemove', doMdResize);
+        document.addEventListener('mouseup', stopMdResize);
+    }
+
+    function doMdResize(e) {
+        if (!mdIsResizing) return;
+        const container = document.getElementById('md-container');
+        const editorPanel = document.getElementById('md-editor-panel');
+        const previewPanel = document.getElementById('md-preview-panel');
+        if (mdIsLayoutVertical) {
+            const containerRect = container.getBoundingClientRect();
+            const newEditorWidth = e.clientX - containerRect.left;
+            const minWidth = 200;
+            const maxWidth = containerRect.width - 200;
+            if (newEditorWidth >= minWidth && newEditorWidth <= maxWidth) {
+                editorPanel.style.flex = 'none';
+                editorPanel.style.width = newEditorWidth + 'px';
+            }
+        } else {
+            const containerRect = container.getBoundingClientRect();
+            const newEditorHeight = e.clientY - containerRect.top;
+            const minHeight = 150;
+            const maxHeight = containerRect.height - 150;
+            if (newEditorHeight >= minHeight && newEditorHeight <= maxHeight) {
+                editorPanel.style.flex = 'none';
+                editorPanel.style.height = newEditorHeight + 'px';
+            }
+        }
+    }
+
+    function stopMdResize() {
+        mdIsResizing = false;
+        document.removeEventListener('mousemove', doMdResize);
+        document.removeEventListener('mouseup', stopMdResize);
+    }
+
+    // Save & Load
+    function startMdAutoSave() {
+        mdAutoSaveTimer = setInterval(() => {
+            const content = document.getElementById('md-input').value;
+            if (content.trim()) {
+                localStorage.setItem('md_content', content);
+                updateSaveStatus('自动保存');
+            }
+        }, 30000); // 30 seconds
+    }
+
+    function mdSaveDocument() {
+        const content = document.getElementById('md-input').value;
+        if (!content.trim()) {
+            showToast('没有内容可保存', 'info');
+            return;
+        }
+        localStorage.setItem('md_content', content);
+        updateSaveStatus('已保存');
+        showToast('文档已保存', 'success');
+    }
+
+    function mdLoadDocument() {
+        const savedContent = localStorage.getItem('md_content');
+        if (savedContent) {
+            document.getElementById('md-input').value = savedContent;
+            mdPreview();
+            updateWordCount();
+            showToast('已加载保存的文档', 'success');
+        } else {
+            showToast('没有保存的文档', 'info');
+        }
+    }
+
+    function updateSaveStatus(text) {
+        const status = document.getElementById('md-save-status');
+        const lastSave = document.getElementById('md-last-save');
+        status.textContent = text;
+        status.classList.remove('hidden');
+        lastSave.textContent = new Date().toLocaleTimeString('zh-CN');
+        setTimeout(() => status.classList.add('hidden'), 3000);
+    }
+
+    function updateWordCount() {
+        const text = document.getElementById('md-input').value;
+        const count = text.replace(/\s/g, '').length;
+        document.getElementById('md-word-count').textContent = count + ' 字';
+    }
+
+    function mdClearConfirm() {
+        const content = document.getElementById('md-input').value;
+        if (!content.trim()) return;
+        if (confirm('确定要清空内容吗？此操作不可撤销。')) {
+            document.getElementById('md-input').value = '';
+            mdPreview();
+            updateWordCount();
+            localStorage.removeItem('md_content');
+            showToast('已清空', 'success');
+        }
+    }
+
+    // Export functions
+    function mdToggleExportMenu() {
+        const menu = document.getElementById('md-export-menu');
+        menu.classList.toggle('hidden');
+    }
+
+    function mdExportMarkdown() {
+        const content = document.getElementById('md-input').value;
+        if (!content.trim()) {
+            showToast('没有内容可导出', 'info');
+            return;
+        }
+        downloadFile('markdown-export.md', content, 'text/markdown');
+        document.getElementById('md-export-menu').classList.add('hidden');
+        showToast('Markdown 已导出', 'success');
+    }
+
+    function mdExportHtml() {
+        const preview = document.getElementById('md-preview');
+        const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Export</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.7; }
+        pre { background: #f6f8fa; padding: 16px; border-radius: 6px; overflow-x: auto; }
+        code { font-family: 'JetBrains Mono', Consolas, monospace; }
+        pre code { background: none; padding: 0; }
+        p code, li code { background: #f6f8fa; padding: 2px 6px; border-radius: 3px; }
+        h1, h2 { border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; }
+        blockquote { border-left: 4px solid #6366f1; padding-left: 1em; color: #6b7280; margin-left: 0; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #e5e7eb; padding: 8px 12px; text-align: left; }
+        th { background: #f8fafc; }
+    </style>
+</head>
+<body>
+${preview.innerHTML}
+</body>
+</html>`;
+        downloadFile('markdown-export.html', html, 'text/html');
+        document.getElementById('md-export-menu').classList.add('hidden');
+        showToast('HTML 已导出', 'success');
+    }
+
+    function mdExportPdf() {
+        const preview = document.getElementById('md-preview');
+        const opt = {
+            margin: 10,
+            filename: 'markdown-export.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().set(opt).from(preview).save().then(() => {
+            showToast('PDF 已导出', 'success');
+        }).catch(e => {
+            showToast('PDF 导出失败: ' + e.message);
+        });
+        document.getElementById('md-export-menu').classList.add('hidden');
+    }
+
+    function mdExportImage() {
+        const preview = document.getElementById('md-preview');
+        html2canvas(preview, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'markdown-export.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            showToast('图片已导出', 'success');
+        }).catch(e => {
+            showToast('图片导出失败: ' + e.message);
+        });
+        document.getElementById('md-export-menu').classList.add('hidden');
+    }
+
+    function downloadFile(filename, content, type) {
+        const blob = new Blob([content], { type: type });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // Server render
     async function mdServerRender() {
         const input = document.getElementById('md-input').value;
         if (!input.trim()) return showToast('请输入 Markdown');
@@ -1036,13 +1593,13 @@
                 unsafe_html: unsafeHtml
             });
             document.getElementById('md-preview').innerHTML = data.html;
-            document.querySelectorAll('#md-preview pre code').forEach(block => {
-                hljs.highlightElement(block);
-            });
+            enhanceCodeBlocks();
+            updateToc(extractHeadings(input));
             showToast('服务端渲染完成', 'success');
         } catch(e) {}
     }
 
+    // Text insert functions
     function mdInsert(before, after) {
         const ta = document.getElementById('md-input');
         const start = ta.selectionStart;
@@ -1051,7 +1608,7 @@
         const replacement = before + selected + after;
         ta.setRangeText(replacement, start, end, 'end');
         ta.focus();
-        debouncedMdPreview();
+        onMdInput();
     }
 
     function mdInsertBlock(before, after) {
@@ -1062,7 +1619,7 @@
         const replacement = before + selected + after;
         ta.setRangeText(replacement, start, end, 'end');
         ta.focus();
-        debouncedMdPreview();
+        onMdInput();
     }
 
     function mdInsertTable() {
@@ -1073,9 +1630,34 @@
     function copyMdHtml() {
         const html = document.getElementById('md-preview').innerHTML;
         copyText(html);
+        document.getElementById('md-export-menu').classList.add('hidden');
     }
 
-    // ===== marked.js configuration =====
+    // Keyboard shortcuts
+    function mdHandleKeydown(e) {
+        if (e.ctrlKey || e.metaKey) {
+            switch(e.key.toLowerCase()) {
+                case 'b':
+                    e.preventDefault();
+                    mdInsert('**', '**');
+                    break;
+                case 'i':
+                    e.preventDefault();
+                    mdInsert('*', '*');
+                    break;
+                case 'k':
+                    e.preventDefault();
+                    mdInsert('[', '](url)');
+                    break;
+                case 's':
+                    e.preventDefault();
+                    mdSaveDocument();
+                    break;
+            }
+        }
+    }
+
+    // marked.js configuration
     function initMarked() {
         if (typeof marked !== 'undefined') {
             marked.setOptions({
@@ -1092,6 +1674,7 @@
         updateJsonInputLineNums();
         updatePydictInputLineNums();
         initHttpClient();
+        initMarkdownEditor();
     });
 
     // ===== TOOL 6: HTTP Client =====

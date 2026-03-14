@@ -27,7 +27,11 @@
       "Bash(cargo build:*)",
       "Bash(npm --version 2>&1)",
       "Bash(npm install:*)",
-      "Bash(railway login:*)"
+      "Bash(railway login:*)",
+      "Bash(sleep:*)",
+      "Bash(cd:*)",
+      "Bash(netstat:*)",
+      "Bash(curl:*)"
     ]
   }
 }

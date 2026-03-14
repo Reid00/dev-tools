@@ -37,6 +37,82 @@ cargo build --release
 
 服务启动后访问: **http://localhost:3000**
 
+## Docker 部署
+
+### 方式一：Docker Compose (推荐)
+
+```bash
+# 构建并启动
+docker compose up -d
+
+# 查看日志
+docker compose logs -f
+
+# 停止服务
+docker compose down
+```
+
+### 方式二：Docker 直接构建
+
+```bash
+# 构建镜像
+docker build -t dev-tools:latest .
+
+# 运行容器
+docker run -d \
+  --name dev-tools \
+  -p 3000:3000 \
+  -e RUST_LOG=info \
+  -e TZ=Asia/Shanghai \
+  --restart unless-stopped \
+  dev-tools:latest
+```
+
+### 方式三：使用预构建镜像
+
+```bash
+# 拉取镜像 (如果已发布到 Docker Hub)
+docker pull yourname/dev-tools:latest
+
+# 运行容器
+docker run -d \
+  --name dev-tools \
+  -p 3000:3000 \
+  --restart unless-stopped \
+  yourname/dev-tools:latest
+```
+
+### Docker 配置说明
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `-p 3000:3000` | 端口映射，格式为 `主机端口:容器端口` | 3000 |
+| `-e RUST_LOG` | 日志级别 (debug/info/warn/error) | info |
+| `-e TZ` | 时区设置 | Asia/Shanghai |
+| `--restart unless-stopped` | 容器自动重启策略 | - |
+
+### Docker 常用命令
+
+```bash
+# 查看容器状态
+docker ps
+
+# 查看实时日志
+docker logs -f dev-tools
+
+# 进入容器
+docker exec -it dev-tools sh
+
+# 重启容器
+docker restart dev-tools
+
+# 停止并删除容器
+docker rm -f dev-tools
+
+# 删除镜像
+docker rmi dev-tools:latest
+```
+
 ## 工具详解
 
 ### 1. 时间转换

@@ -1,0 +1,19 @@
+services:
+  dev-tools:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dev-tools:latest
+    container_name: dev-tools
+    ports:
+      - "3000:3000"
+    environment:
+      - RUST_LOG=info
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
