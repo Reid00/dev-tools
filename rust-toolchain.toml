@@ -1,0 +1,3 @@
+[toolchain]
+channel = "1.90.0"  # 这里写你想要的版本
+components = ["rustfmt", "clippy"]

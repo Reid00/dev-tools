@@ -24,7 +24,10 @@
       "Bash(cargo test:*)",
       "Bash(cargo run:*)",
       "Bash(sleep 3 && curl -s -X POST http://localhost:3000/api/http/send -H \"Content-Type: application/json\" -d '{\"url\":\"https://httpbin.org/get\",\"method\":\"get\"}')",
-      "Bash(cargo build:*)"
+      "Bash(cargo build:*)",
+      "Bash(npm --version 2>&1)",
+      "Bash(npm install:*)",
+      "Bash(railway login:*)"
     ]
   }
 }
