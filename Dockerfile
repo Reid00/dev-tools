@@ -1,14 +1,11 @@
 # 构建阶段
-FROM rust:1.90-alpine AS builder
-
-# 安装构建依赖
-RUN apk add --no-cache musl-dev
+FROM rust:1.82-bookworm AS builder
 
 WORKDIR /app
 
 # 复制 Cargo 文件并缓存依赖
-COPY Cargo.toml ./
-RUN mkdir src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
+COPY Cargo.toml Cargo.lock* ./
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs && cargo build --release && rm -rf src
 
 # 复制源代码并构建
 COPY src ./src
@@ -16,10 +13,13 @@ COPY static ./static
 RUN touch src/main.rs && cargo build --release
 
 # 运行阶段
-FROM alpine:3.19
+FROM debian:bookworm-slim
 
 # 安装运行时依赖
-RUN apk add --no-cache ca-certificates tzdata
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    tzdata \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
