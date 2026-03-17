@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct TranslateRequest {
     pub text: String,
     pub from: Option<String>, // "zh" | "en" | "auto"
-    pub to: String,           // "zh" | "en"
+    pub to: String,           // "zh" | "en" | "auto"
 }
 
 #[derive(Serialize)]
@@ -37,30 +37,40 @@ async fn translate(
     Json(req): Json<TranslateRequest>,
 ) -> Result<Json<TranslateResponse>, Json<serde_json::Value>> {
     let from_lang = req.from.as_deref().unwrap_or("auto");
+    let to_lang = req.to.as_str();
+
+    // Detect if text contains Chinese characters
+    let has_chinese = req.text.chars().any(|c| {
+        matches!(c, '\u{4e00}'..='\u{9fff}' | '\u{3400}'..='\u{4dbf}')
+    });
 
     // Map short codes to MyMemory language pairs
-    let lang_pair = match (from_lang, req.to.as_str()) {
-        ("auto", "zh") | ("en", "zh") => "en|zh-CN",
-        ("auto", "en") | ("zh", "en") => "zh-CN|en",
-        ("zh", "zh") => {
+    let lang_pair = match (from_lang, to_lang) {
+        // Explicit direction overrides
+        ("en", "zh") => "en|zh-CN",
+        ("zh", "en") => "zh-CN|en",
+        // Same language - no translation needed
+        ("zh", "zh") | ("en", "en") => {
+            let lang = if has_chinese { "zh" } else { "en" };
             return Ok(Json(TranslateResponse {
                 result: req.text.clone(),
-                from: "zh".to_string(),
-                to: "zh".to_string(),
+                from: lang.to_string(),
+                to: lang.to_string(),
             }));
         }
-        ("en", "en") => {
-            return Ok(Json(TranslateResponse {
-                result: req.text.clone(),
-                from: "en".to_string(),
-                to: "en".to_string(),
-            }));
+        // Auto-detect target: translate based on source language
+        (_, "auto") => {
+            if has_chinese {
+                "zh-CN|en"
+            } else {
+                "en|zh-CN"
+            }
         }
+        // Auto-detect source with explicit target
+        ("auto", "zh") => "en|zh-CN",
+        ("auto", "en") => "zh-CN|en",
+        // Fallback: auto-detect based on text content
         _ => {
-            // Auto-detect: if contains Chinese chars, translate to English; otherwise to Chinese
-            let has_chinese = req.text.chars().any(|c| {
-                matches!(c, '\u{4e00}'..='\u{9fff}' | '\u{3400}'..='\u{4dbf}')
-            });
             if has_chinese {
                 "zh-CN|en"
             } else {
@@ -145,12 +155,27 @@ mod tests {
     // ── Language pair mapping (unit tests) ────────────────────
 
     fn resolve_lang_pair(from: &str, to: &str, text: &str) -> &'static str {
+        let has_chinese = detect_has_chinese(text);
         match (from, to) {
-            ("auto", "zh") | ("en", "zh") => "en|zh-CN",
-            ("auto", "en") | ("zh", "en") => "zh-CN|en",
+            // Explicit direction overrides
+            ("en", "zh") => "en|zh-CN",
+            ("zh", "en") => "zh-CN|en",
+            // Same language - no translation
             ("zh", "zh") | ("en", "en") => "same",
+            // Auto-detect target: translate based on source language
+            (_, "auto") => {
+                if has_chinese {
+                    "zh-CN|en"
+                } else {
+                    "en|zh-CN"
+                }
+            }
+            // Auto-detect source with explicit target
+            ("auto", "zh") => "en|zh-CN",
+            ("auto", "en") => "zh-CN|en",
+            // Fallback: auto-detect based on text content
             _ => {
-                if detect_has_chinese(text) {
+                if has_chinese {
                     "zh-CN|en"
                 } else {
                     "en|zh-CN"
@@ -196,6 +221,22 @@ mod tests {
             resolve_lang_pair("unknown", "unknown", "hello world"),
             "en|zh-CN"
         );
+    }
+
+    // ── Auto-detect target language tests ──────────────────────
+
+    #[test]
+    fn test_lang_pair_auto_target_chinese_input() {
+        // Chinese input with auto target -> translate to English
+        assert_eq!(resolve_lang_pair("auto", "auto", "你好世界"), "zh-CN|en");
+        assert_eq!(resolve_lang_pair("zh", "auto", "测试"), "zh-CN|en");
+    }
+
+    #[test]
+    fn test_lang_pair_auto_target_english_input() {
+        // English input with auto target -> translate to Chinese
+        assert_eq!(resolve_lang_pair("auto", "auto", "hello world"), "en|zh-CN");
+        assert_eq!(resolve_lang_pair("en", "auto", "test"), "en|zh-CN");
     }
 
     // ── MyMemoryResponse deserialization ──────────────────────

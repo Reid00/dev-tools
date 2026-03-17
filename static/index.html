@@ -464,6 +464,7 @@
                         <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
                     </button>
                     <select id="translate-to" class="px-4 py-2 border border-gray-200 rounded-lg text-sm">
+                        <option value="auto">自动检测</option>
                         <option value="en">English</option>
                         <option value="zh">中文</option>
                     </select>
@@ -1143,14 +1144,10 @@
         // Swap language selects if possible
         const fromVal = fromEl.value;
         const toVal = toEl.value;
-        if (fromVal !== 'auto') {
-            // Find matching options
-            for (let opt of toEl.options) {
-                if (opt.value === fromVal) { toEl.value = fromVal; break; }
-            }
-            for (let opt of fromEl.options) {
-                if (opt.value === toVal) { fromEl.value = toVal; break; }
-            }
+        // Don't swap if either is 'auto'
+        if (fromVal !== 'auto' && toVal !== 'auto') {
+            fromEl.value = toVal;
+            toEl.value = fromVal;
         }
     }
 
