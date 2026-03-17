@@ -31,7 +31,10 @@
       "Bash(sleep:*)",
       "Bash(cd:*)",
       "Bash(netstat:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "WebFetch(domain:lib.rs)",
+      "Bash(cargo doc:*)",
+      "Bash(cat:*)"
     ]
   }
 }

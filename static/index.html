@@ -58,8 +58,13 @@
         .markdown-body h2 { font-size: 1.5em; font-weight: 600; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.3em; margin: 1em 0 0.5em; }
         .markdown-body h3 { font-size: 1.25em; font-weight: 600; margin: 1em 0 0.5em; }
         .markdown-body p { margin: 0.5em 0; line-height: 1.7; }
-        .markdown-body ul, .markdown-body ol { padding-left: 2em; margin: 0.5em 0; }
-        .markdown-body li { margin: 0.25em 0; }
+        .markdown-body ul { padding-left: 2em; margin: 0.5em 0; list-style-type: disc; }
+        .markdown-body ol { padding-left: 2em; margin: 0.5em 0; list-style-type: decimal; }
+        .markdown-body li { margin: 0.25em 0; display: list-item; }
+        .markdown-body ul ul { list-style-type: circle; }
+        .markdown-body ul ul ul { list-style-type: square; }
+        .markdown-body ol ol { list-style-type: lower-alpha; }
+        .markdown-body ol ol ol { list-style-type: lower-roman; }
         .markdown-body code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.9em; }
         .markdown-body pre code { background: transparent; padding: 0; }
         .markdown-body pre { margin: 1em 0; border-radius: 8px; overflow: auto; }
@@ -565,6 +570,10 @@
                         <div class="md-panel-header">
                             <span class="text-sm font-medium text-gray-600 dark:text-gray-300">预览</span>
                             <div class="flex items-center gap-2">
+                                <button onclick="copyPreviewHtml()" id="copy-preview-btn" class="text-xs text-gray-500 hover:text-indigo-500 transition-colors flex items-center gap-1" title="复制Markdown内容">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                                    <span>复制</span>
+                                </button>
                                 <span id="md-word-count" class="text-xs text-gray-400">0 字</span>
                             </div>
                         </div>
@@ -1282,6 +1291,29 @@
                 span.textContent = '复制';
                 btn.classList.remove('copied');
             }, 2000);
+        });
+    }
+
+    function copyPreviewHtml() {
+        const input = document.getElementById('md-input');
+        const markdown = input.value;
+        if (!markdown.trim()) {
+            showToast('内容为空', 'error');
+            return;
+        }
+        navigator.clipboard.writeText(markdown).then(() => {
+            const btn = document.getElementById('copy-preview-btn');
+            const span = btn.querySelector('span');
+            const originalText = span.textContent;
+            span.textContent = '已复制!';
+            btn.classList.add('text-green-500');
+            setTimeout(() => {
+                span.textContent = originalText;
+                btn.classList.remove('text-green-500');
+            }, 2000);
+            showToast('已复制到剪贴板', 'success');
+        }).catch(err => {
+            showToast('复制失败: ' + err, 'error');
         });
     }
 

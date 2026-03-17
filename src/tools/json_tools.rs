@@ -128,10 +128,43 @@ fn python_dict_to_json(input: &str) -> Result<String, String> {
 
         if in_string {
             if c == '\\' && i + 1 < len {
-                result.push(c);
-                result.push(chars[i + 1]);
-                i += 2;
-                continue;
+                // Handle escape sequences - only allow valid JSON escapes
+                let next = chars[i + 1];
+                match next {
+                    // Valid JSON escape sequences
+                    '"' | '\\' | '/' | 'b' | 'f' | 'n' | 'r' | 't' => {
+                        result.push('\\');
+                        result.push(next);
+                        i += 2;
+                        continue;
+                    }
+                    // Unicode escape \uXXXX
+                    'u' => {
+                        result.push('\\');
+                        result.push('u');
+                        i += 2;
+                        // Copy the next 4 hex digits if present
+                        for _ in 0..4 {
+                            if i < len {
+                                let h = chars[i];
+                                if h.is_ascii_hexdigit() {
+                                    result.push(h);
+                                    i += 1;
+                                } else {
+                                    break;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    // Invalid escape - just output the backslash escaped
+                    _ => {
+                        result.push_str("\\\\");
+                        result.push(next);
+                        i += 2;
+                        continue;
+                    }
+                }
             }
             if c == string_char {
                 in_string = false;
@@ -146,7 +179,16 @@ fn python_dict_to_json(input: &str) -> Result<String, String> {
                 i += 1;
                 continue;
             }
-            result.push(c);
+            // Escape literal newlines and control characters in strings (from print output)
+            match c {
+                '\n' => result.push_str("\\n"),
+                '\r' => result.push_str("\\r"),
+                '\t' => result.push_str("\\t"),
+                c if c.is_control() => {
+                    result.push_str(&format!("\\u{:04x}", c as u32));
+                }
+                _ => result.push(c),
+            }
             i += 1;
             continue;
         }
@@ -627,6 +669,33 @@ mod tests {
         let result = python_dict_to_json("{'name': '张三'}").unwrap();
         let v: Value = serde_json::from_str(&result).unwrap();
         assert_eq!(v["name"], "张三");
+    }
+
+    #[test]
+    fn test_pydict_multiline_string() {
+        // Test literal newlines in strings (from print output)
+        let result = python_dict_to_json("{'msg': 'line1\nline2'}").unwrap();
+        let v: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["msg"], "line1\nline2");
+
+        // Test with tabs
+        let result = python_dict_to_json("{'msg': 'col1\tcol2'}").unwrap();
+        let v: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["msg"], "col1\tcol2");
+    }
+
+    #[test]
+    fn test_pydict_invalid_escape() {
+        // Test invalid escape sequences (like \《 in Chinese text)
+        // These should be escaped to produce valid JSON
+        let result = python_dict_to_json("{'text': 'test\\《invalid'}").unwrap();
+        let v: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["text"], "test\\《invalid");
+
+        // Test backslash before regular character (using raw string to avoid Rust escape processing)
+        let result = python_dict_to_json(r"{'text': 'path\xfile'}").unwrap();
+        let v: Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(v["text"], r"path\xfile");
     }
 
     #[test]
