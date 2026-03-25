@@ -350,7 +350,7 @@
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-sm font-medium text-gray-600">输入 JSON <span class="text-gray-400 font-normal">(支持 # 注释)</span></label>
                             <div class="flex gap-1">
-                                <button onclick="copyText(document.getElementById('json-input').value)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                                <button onclick="copyText(document.getElementById('json-input').value, event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
                                 <button onclick="clearJsonInput()" class="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">清空</button>
                             </div>
                         </div>
@@ -366,7 +366,7 @@
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-sm font-medium text-gray-600">输出结果</label>
-                            <button onclick="copyText(document.getElementById('json-output-text').textContent)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                            <button onclick="copyText(document.getElementById('json-output-text').textContent, event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
                         </div>
                         <div id="json-output" class="json-output-area w-full border border-gray-200 rounded-lg overflow-hidden" style="height:500px">
                             <div class="json-code-container h-full">
@@ -417,7 +417,7 @@
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-sm font-medium text-gray-600">Python Dict 输入</label>
                             <div class="flex gap-1">
-                                <button onclick="copyText(document.getElementById('pydict-input').value)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                                <button onclick="copyText(document.getElementById('pydict-input').value, event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
                                 <button onclick="clearPydictInput()" class="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">清空</button>
                             </div>
                         </div>
@@ -433,7 +433,7 @@
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-sm font-medium text-gray-600">JSON 输出</label>
-                            <button onclick="copyText(document.getElementById('pydict-output-text').textContent)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                            <button onclick="copyText(document.getElementById('pydict-output-text').textContent, event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
                         </div>
                         <div id="pydict-output" class="json-output-area w-full border border-gray-200 rounded-lg overflow-hidden" style="height:500px">
                             <div class="json-code-container h-full">
@@ -477,7 +477,7 @@
                     </div>
                     <div class="relative">
                         <textarea id="translate-output" class="w-full h-64 px-4 py-3 border border-gray-200 rounded-lg bg-gray-50 text-sm resize-y" readonly placeholder="翻译结果..."></textarea>
-                        <button onclick="copyText(document.getElementById('translate-output').value)" class="copy-btn absolute top-3 right-3 text-xs px-3 py-1 bg-white hover:bg-gray-100 rounded-md text-gray-600 transition-colors border border-gray-200">复制</button>
+                        <button onclick="copyText(document.getElementById('translate-output').value, event)" class="copy-btn absolute top-3 right-3 text-xs px-3 py-1 bg-white hover:bg-gray-100 rounded-md text-gray-600 transition-colors border border-gray-200">复制</button>
                     </div>
                 </div>
             </div>
@@ -782,11 +782,15 @@
         setTimeout(() => toast.remove(), 3500);
     }
 
-    function copyText(text) {
+    function copyText(text, evt) {
         navigator.clipboard.writeText(text).then(() => {
-            const btn = event.currentTarget || event.target;
-            btn.classList.add('copied');
-            setTimeout(() => btn.classList.remove('copied'), 1500);
+            if (evt) {
+                const btn = evt.currentTarget || evt.target;
+                btn.classList.add('copied');
+                setTimeout(() => btn.classList.remove('copied'), 1500);
+            } else {
+                showToast('已复制');
+            }
         }).catch(() => showToast('复制失败'));
     }
 
@@ -811,7 +815,7 @@
             <span class="text-xs text-gray-400 mr-3">${label}</span>
             <div class="flex items-center gap-2">
                 <span class="font-mono text-sm text-gray-800 select-all">${escapeHtml(String(value))}</span>
-                <button onclick="copyText('${escapeJs(String(value))}')" class="copy-btn text-xs px-2 py-0.5 bg-white hover:bg-gray-100 border border-gray-200 rounded text-gray-500 transition-colors">复制</button>
+                <button onclick="copyText('${escapeJs(String(value))}', event)" class="copy-btn text-xs px-2 py-0.5 bg-white hover:bg-gray-100 border border-gray-200 rounded text-gray-500 transition-colors">复制</button>
             </div>
         </div>`;
     }
