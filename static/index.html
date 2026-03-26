@@ -4,31 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>开发者工具箱 - Dev Tools</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/json.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/python.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/javascript.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/bash.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/rust.min.js"></script>
-    <!-- Markdown editor extras -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <link rel="stylesheet" id="hljs-light-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
-    <link rel="stylesheet" id="hljs-dark-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" disabled>
+    <!-- Tailwind CSS with fallback -->
+    <script src="https://cdn.tailwindcss.com" onerror="window.tailwindLoadFailed=true"></script>
     <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        mono: ['"JetBrains Mono"', '"Fira Code"', 'Consolas', 'monospace'],
+        // Fallback basic styles if Tailwind fails to load
+        if (window.tailwindLoadFailed || typeof tailwind === 'undefined') {
+            document.write('<style>.bg-gray-50{background:#f9fafb}.bg-white{background:#fff}.bg-indigo-500{background:#6366f1}.text-white{color:#fff}.text-gray-800{color:#1f2937}.text-gray-600{color:#4b5563}.text-gray-500{color:#6b7280}.text-gray-400{color:#9ca3af}.text-indigo-500{color:#6366f1}.rounded-lg{border-radius:0.5rem}.rounded-xl{border-radius:0.75rem}.border{border-width:1px}.border-gray-200{border-color:#e5e7eb}.border-gray-100{border-color:#f3f4f6}.p-4{padding:1rem}.p-6{padding:1.5rem}.px-4{padding-left:1rem;padding-right:1rem}.py-2{padding-top:0.5rem;padding-bottom:0.5rem}.py-3{padding-top:0.75rem;padding-bottom:0.75rem}.mb-4{margin-bottom:1rem}.mb-6{margin-bottom:1.5rem}.mt-4{margin-top:1rem}.flex{display:flex}.flex-1{flex:1}.flex-col{flex-direction:column}.items-center{align-items:center}.justify-between{justify-content:space-between}.gap-2{gap:0.5rem}.gap-4{gap:1rem}.w-full{width:100%}.min-h-screen{min-height:100vh}.shadow-sm{box-shadow:0 1px 2px 0 rgba(0,0,0,0.05)}.font-medium{font-weight:500}.font-bold{font-weight:700}.text-sm{font-size:0.875rem}.text-xl{font-size:1.25rem}.text-2xl{font-size:1.5rem}</style>');
+        } else {
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        fontFamily: {
+                            mono: ['"JetBrains Mono"', '"Fira Code"', 'Consolas', 'monospace'],
+                        }
                     }
                 }
             }
         }
     </script>
+    <!-- marked.js with fallback -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js" onerror="window.markedLoadFailed=true"></script>
+    <script>
+        // Minimal markdown parser fallback
+        if (window.markedLoadFailed || typeof marked === 'undefined') {
+            window.marked = {
+                parse: function(md) {
+                    return md
+                        .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                        .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                        .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                        .replace(/\*\*(.*)\*\*/gim, '<strong>$1</strong>')
+                        .replace(/\*(.*)\*/gim, '<em>$1</em>')
+                        .replace(/`([^`]+)`/gim, '<code>$1</code>')
+                        .replace(/\n/gim, '<br>');
+                },
+                setOptions: function() {}
+            };
+        }
+    </script>
+    <!-- highlight.js with fallback -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js" onerror="window.hljsLoadFailed=true"></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/json.min.js" onerror=""></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/python.min.js" onerror=""></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/javascript.min.js" onerror=""></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/bash.min.js" onerror=""></script>
+    <script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/languages/rust.min.js" onerror=""></script>
+    <script>
+        // highlight.js fallback
+        if (window.hljsLoadFailed || typeof hljs === 'undefined') {
+            window.hljs = {
+                highlightElement: function(el) { el.classList.add('hljs'); },
+                highlightAll: function() {}
+            };
+        }
+    </script>
+    <!-- html2pdf and html2canvas (optional, gracefully degrade) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" onerror="window.html2canvasLoadFailed=true"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" onerror="window.html2pdfLoadFailed=true"></script>
+    <link rel="stylesheet" id="hljs-light-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css">
+    <link rel="stylesheet" id="hljs-dark-theme" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github-dark.min.css" disabled>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
@@ -771,6 +806,75 @@
     </footer>
 
     <script>
+    // ===== Safe Utilities for Robustness =====
+    // Safe localStorage wrapper (handles private browsing and restrictions)
+    const SafeStorage = {
+        get: function(key) {
+            try {
+                return localStorage.getItem(key);
+            } catch (e) {
+                console.warn('localStorage not available:', e);
+                return null;
+            }
+        },
+        set: function(key, value) {
+            try {
+                localStorage.setItem(key, value);
+                return true;
+            } catch (e) {
+                console.warn('localStorage not available:', e);
+                return false;
+            }
+        },
+        remove: function(key) {
+            try {
+                localStorage.removeItem(key);
+                return true;
+            } catch (e) {
+                console.warn('localStorage not available:', e);
+                return false;
+            }
+        },
+        getJSON: function(key, defaultValue) {
+            try {
+                const val = localStorage.getItem(key);
+                return val ? JSON.parse(val) : defaultValue;
+            } catch (e) {
+                return defaultValue;
+            }
+        },
+        setJSON: function(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+    };
+
+    // Safe DOM element getter
+    function $(id) {
+        const el = document.getElementById(id);
+        if (!el) console.warn('Element not found:', id);
+        return el;
+    }
+
+    // Safe DOM operation helper
+    function safeCall(fn, fallback) {
+        try {
+            return fn();
+        } catch (e) {
+            console.warn('Safe call failed:', e);
+            return fallback;
+        }
+    }
+
+    // Check if external library is loaded
+    function isLibraryLoaded(name) {
+        return typeof window[name] !== 'undefined';
+    }
+
     // ===== Global Utilities =====
     function showToast(msg, type = 'error') {
         const container = document.getElementById('toast-container');
@@ -964,9 +1068,12 @@
 
     function updateJsonOutput(text, lang = 'json') {
         const el = document.getElementById('json-output-text');
+        if (!el) return;
         el.textContent = text;
         el.className = `hljs language-${lang}`;
-        hljs.highlightElement(el);
+        if (typeof hljs !== 'undefined') {
+            hljs.highlightElement(el);
+        }
 
         // Generate line numbers
         const lines = text.split('\n');
@@ -1089,9 +1196,12 @@
 
     function updatePydictOutput(text) {
         const el = document.getElementById('pydict-output-text');
+        if (!el) return;
         el.textContent = text;
         el.className = 'hljs language-json';
-        hljs.highlightElement(el);
+        if (typeof hljs !== 'undefined') {
+            hljs.highlightElement(el);
+        }
 
         // Generate line numbers
         const lines = text.split('\n');
@@ -1180,21 +1290,22 @@
 
     function initMarkdownEditor() {
         // Load saved preferences
-        const savedTheme = localStorage.getItem('md_theme');
+        const savedTheme = SafeStorage.get('md_theme');
         if (savedTheme === 'dark') {
             mdIsDark = true;
             document.body.classList.add('dark');
             updateThemeIcons();
         }
-        const savedLayout = localStorage.getItem('md_layout');
+        const savedLayout = SafeStorage.get('md_layout');
         if (savedLayout === 'horizontal') {
             mdIsLayoutVertical = false;
             updateLayoutIcon();
         }
         // Load saved content
-        const savedContent = localStorage.getItem('md_content');
-        if (savedContent) {
-            document.getElementById('md-input').value = savedContent;
+        const savedContent = SafeStorage.get('md_content');
+        const mdInput = document.getElementById('md-input');
+        if (savedContent && mdInput) {
+            mdInput.value = savedContent;
         }
         // Start auto-save
         startMdAutoSave();
@@ -1203,7 +1314,10 @@
         // Initial preview
         mdPreview();
         // Keyboard shortcuts
-        document.getElementById('md-input').addEventListener('keydown', mdHandleKeydown);
+        if (mdInput) {
+            mdInput.addEventListener('keydown', mdHandleKeydown);
+            mdInput.addEventListener('scroll', onEditorScroll);
+        }
         // Close export menu on click outside
         document.addEventListener('click', (e) => {
             const menu = document.getElementById('md-export-menu');
@@ -1217,9 +1331,6 @@
                 mdToggleFullscreen();
             }
         });
-        // Scroll sync
-        const editorScroll = document.getElementById('md-input');
-        editorScroll.addEventListener('scroll', onEditorScroll);
     }
 
     function onMdInput() {
@@ -1229,22 +1340,24 @@
     }
 
     function mdPreview() {
-        const input = document.getElementById('md-input').value;
+        const mdInput = document.getElementById('md-input');
         const preview = document.getElementById('md-preview');
+        if (!mdInput || !preview) return;
+        const input = mdInput.value;
         if (!input.trim()) {
             preview.innerHTML = '<p class="text-gray-400 dark:text-gray-500 italic">在左侧输入 Markdown 开始预览...</p>';
             updateToc([]);
             return;
         }
         try {
-            const html = marked.parse(input);
+            const html = typeof marked !== 'undefined' ? marked.parse(input) : escapeHtml(input).replace(/\n/g, '<br>');
             preview.innerHTML = html;
             // Enhance code blocks
             enhanceCodeBlocks();
             // Update TOC
             updateToc(extractHeadings(input));
         } catch(e) {
-            preview.innerHTML = '<p class="text-red-500">渲染错误: ' + escapeHtml(e.message) + '</p>';
+            preview.innerHTML = '<p class="text-red-500">渲染错误: ' + escapeHtml(e.message || e) + '</p>';
         }
     }
 
@@ -1255,14 +1368,17 @@
             if (!code) return;
             // Get language
             let lang = '';
-            if (code.className.match(/language-(\w+)/)) {
-                lang = RegExp.$1;
+            const langMatch = code.className.match(/language-(\w+)/);
+            if (langMatch) {
+                lang = langMatch[1];
             }
             // Create wrapper with new class
             const wrapper = document.createElement('div');
             wrapper.className = 'md-code-block-wrapper';
-            pre.parentNode.insertBefore(wrapper, pre);
-            wrapper.appendChild(pre);
+            if (pre.parentNode) {
+                pre.parentNode.insertBefore(wrapper, pre);
+                wrapper.appendChild(pre);
+            }
             // Add header with improved styling
             const header = document.createElement('div');
             header.className = 'md-code-header';
@@ -1276,8 +1392,12 @@
             wrapper.insertBefore(header, pre);
             // Apply syntax highlighting
             pre.classList.add('hljs');
-            if (code.textContent) {
-                hljs.highlightElement(code);
+            if (code.textContent && typeof hljs !== 'undefined') {
+                try {
+                    hljs.highlightElement(code);
+                } catch (e) {
+                    console.warn('Highlight failed:', e);
+                }
             }
         });
     }
@@ -1378,9 +1498,10 @@
     // Layout & View
     function mdToggleLayout() {
         const container = document.getElementById('md-container');
+        if (!container) return;
         mdIsLayoutVertical = !mdIsLayoutVertical;
         container.classList.toggle('md-layout-vertical', mdIsLayoutVertical);
-        localStorage.setItem('md_layout', mdIsLayoutVertical ? 'vertical' : 'horizontal');
+        SafeStorage.set('md_layout', mdIsLayoutVertical ? 'vertical' : 'horizontal');
         updateLayoutIcon();
     }
 
@@ -1408,11 +1529,13 @@
     function mdToggleTheme() {
         mdIsDark = !mdIsDark;
         document.body.classList.toggle('dark', mdIsDark);
-        localStorage.setItem('md_theme', mdIsDark ? 'dark' : 'light');
+        SafeStorage.set('md_theme', mdIsDark ? 'dark' : 'light');
         updateThemeIcons();
         // Update highlight.js theme
-        document.getElementById('hljs-light-theme').disabled = mdIsDark;
-        document.getElementById('hljs-dark-theme').disabled = !mdIsDark;
+        const lightTheme = document.getElementById('hljs-light-theme');
+        const darkTheme = document.getElementById('hljs-dark-theme');
+        if (lightTheme) lightTheme.disabled = mdIsDark;
+        if (darkTheme) darkTheme.disabled = !mdIsDark;
     }
 
     function updateThemeIcons() {
@@ -1467,29 +1590,34 @@
     // Save & Load
     function startMdAutoSave() {
         mdAutoSaveTimer = setInterval(() => {
-            const content = document.getElementById('md-input').value;
+            const mdInput = document.getElementById('md-input');
+            if (!mdInput) return;
+            const content = mdInput.value;
             if (content.trim()) {
-                localStorage.setItem('md_content', content);
+                SafeStorage.set('md_content', content);
                 updateSaveStatus('自动保存');
             }
         }, 30000); // 30 seconds
     }
 
     function mdSaveDocument() {
-        const content = document.getElementById('md-input').value;
+        const mdInput = document.getElementById('md-input');
+        if (!mdInput) return;
+        const content = mdInput.value;
         if (!content.trim()) {
             showToast('没有内容可保存', 'info');
             return;
         }
-        localStorage.setItem('md_content', content);
+        SafeStorage.set('md_content', content);
         updateSaveStatus('已保存');
         showToast('文档已保存', 'success');
     }
 
     function mdLoadDocument() {
-        const savedContent = localStorage.getItem('md_content');
-        if (savedContent) {
-            document.getElementById('md-input').value = savedContent;
+        const savedContent = SafeStorage.get('md_content');
+        const mdInput = document.getElementById('md-input');
+        if (savedContent && mdInput) {
+            mdInput.value = savedContent;
             mdPreview();
             updateWordCount();
             showToast('已加载保存的文档', 'success');
@@ -1514,13 +1642,15 @@
     }
 
     function mdClearConfirm() {
-        const content = document.getElementById('md-input').value;
+        const mdInput = document.getElementById('md-input');
+        if (!mdInput) return;
+        const content = mdInput.value;
         if (!content.trim()) return;
         if (confirm('确定要清空内容吗？此操作不可撤销。')) {
-            document.getElementById('md-input').value = '';
+            mdInput.value = '';
             mdPreview();
             updateWordCount();
-            localStorage.removeItem('md_content');
+            SafeStorage.remove('md_content');
             showToast('已清空', 'success');
         }
     }
@@ -1575,6 +1705,12 @@ ${preview.innerHTML}
 
     function mdExportPdf() {
         const preview = document.getElementById('md-preview');
+        if (!preview) return;
+        if (typeof html2pdf === 'undefined') {
+            showToast('PDF 导出功能不可用 (html2pdf 未加载)', 'error');
+            document.getElementById('md-export-menu').classList.add('hidden');
+            return;
+        }
         const opt = {
             margin: 10,
             filename: 'markdown-export.pdf',
@@ -1585,13 +1721,19 @@ ${preview.innerHTML}
         html2pdf().set(opt).from(preview).save().then(() => {
             showToast('PDF 已导出', 'success');
         }).catch(e => {
-            showToast('PDF 导出失败: ' + e.message);
+            showToast('PDF 导出失败: ' + (e.message || e));
         });
         document.getElementById('md-export-menu').classList.add('hidden');
     }
 
     function mdExportImage() {
         const preview = document.getElementById('md-preview');
+        if (!preview) return;
+        if (typeof html2canvas === 'undefined') {
+            showToast('图片导出功能不可用 (html2canvas 未加载)', 'error');
+            document.getElementById('md-export-menu').classList.add('hidden');
+            return;
+        }
         html2canvas(preview, { scale: 2, backgroundColor: '#ffffff' }).then(canvas => {
             const link = document.createElement('a');
             link.download = 'markdown-export.png';
@@ -1599,7 +1741,7 @@ ${preview.innerHTML}
             link.click();
             showToast('图片已导出', 'success');
         }).catch(e => {
-            showToast('图片导出失败: ' + e.message);
+            showToast('图片导出失败: ' + (e.message || e));
         });
         document.getElementById('md-export-menu').classList.add('hidden');
     }
@@ -2020,7 +2162,9 @@ ${preview.innerHTML}
                 } else {
                     outputEl.className = 'hljs language-plaintext';
                 }
-                hljs.highlightElement(outputEl);
+                if (typeof hljs !== 'undefined') {
+                    hljs.highlightElement(outputEl);
+                }
 
                 // Line numbers
                 const lines = data.body.split('\n');
@@ -2075,7 +2219,7 @@ ${preview.innerHTML}
     }
 
     function saveToHistory(request, response, duration) {
-        const history = JSON.parse(localStorage.getItem('http_history') || '[]');
+        const history = SafeStorage.getJSON('http_history', []);
         const entry = {
             id: Date.now(),
             timestamp: new Date().toISOString(),
@@ -2089,11 +2233,11 @@ ${preview.innerHTML}
         history.unshift(entry);
         // Keep max 50 entries
         if (history.length > 50) history.pop();
-        localStorage.setItem('http_history', JSON.stringify(history));
+        SafeStorage.setJSON('http_history', history);
     }
 
     function showHttpHistory() {
-        const history = JSON.parse(localStorage.getItem('http_history') || '[]');
+        const history = SafeStorage.getJSON('http_history', []);
         if (history.length === 0) {
             showToast('暂无历史记录', 'info');
             return;
@@ -2125,7 +2269,7 @@ ${preview.innerHTML}
     }
 
     function loadFromHistory(id) {
-        const history = JSON.parse(localStorage.getItem('http_history') || '[]');
+        const history = SafeStorage.getJSON('http_history', []);
         const entry = history.find(h => h.id === id);
         if (!entry) return;
 
@@ -2183,9 +2327,9 @@ ${preview.innerHTML}
     }
 
     function deleteHistory(id) {
-        let history = JSON.parse(localStorage.getItem('http_history') || '[]');
+        let history = SafeStorage.getJSON('http_history', []);
         history = history.filter(h => h.id !== id);
-        localStorage.setItem('http_history', JSON.stringify(history));
+        SafeStorage.setJSON('http_history', history);
         showHttpHistory();
     }
 
@@ -2204,18 +2348,18 @@ ${preview.innerHTML}
             auth: getHttpAuth()
         };
 
-        const templates = JSON.parse(localStorage.getItem('http_templates') || '[]');
+        const templates = SafeStorage.getJSON('http_templates', []);
         templates.push({
             id: Date.now(),
             name,
             request
         });
-        localStorage.setItem('http_templates', JSON.stringify(templates));
+        SafeStorage.setJSON('http_templates', templates);
         showToast('模板保存成功', 'success');
     }
 
     function showHttpTemplates() {
-        const templates = JSON.parse(localStorage.getItem('http_templates') || '[]');
+        const templates = SafeStorage.getJSON('http_templates', []);
         if (templates.length === 0) {
             showToast('暂无保存的模板', 'info');
             return;
@@ -2243,7 +2387,7 @@ ${preview.innerHTML}
     }
 
     function loadTemplate(id) {
-        const templates = JSON.parse(localStorage.getItem('http_templates') || '[]');
+        const templates = SafeStorage.getJSON('http_templates', []);
         const template = templates.find(t => t.id === id);
         if (!template) return;
 
@@ -2310,9 +2454,9 @@ ${preview.innerHTML}
     }
 
     function deleteTemplate(id) {
-        let templates = JSON.parse(localStorage.getItem('http_templates') || '[]');
+        let templates = SafeStorage.getJSON('http_templates', []);
         templates = templates.filter(t => t.id !== id);
-        localStorage.setItem('http_templates', JSON.stringify(templates));
+        SafeStorage.setJSON('http_templates', templates);
         showHttpTemplates();
     }
 
