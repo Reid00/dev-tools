@@ -887,7 +887,7 @@
     }
 
     function copyText(text, evt) {
-        navigator.clipboard.writeText(text).then(() => {
+        const onSuccess = () => {
             if (evt) {
                 const btn = evt.currentTarget || evt.target;
                 btn.classList.add('copied');
@@ -895,7 +895,30 @@
             } else {
                 showToast('已复制');
             }
-        }).catch(() => showToast('复制失败'));
+        };
+        const onFail = () => showToast('复制失败');
+
+        // 优先使用 clipboard API (需要安全上下文: HTTPS 或 localhost)
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(onSuccess).catch(onFail);
+        } else {
+            // Fallback: 使用 document.execCommand (兼容非安全上下文)
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.cssText = 'position:fixed;left:-9999px;top:-9999px;';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                if (document.execCommand('copy')) {
+                    onSuccess();
+                } else {
+                    onFail();
+                }
+            } catch (e) {
+                onFail();
+            }
+            document.body.removeChild(textarea);
+        }
     }
 
     async function apiCall(url, body) {
@@ -1404,15 +1427,14 @@
 
     function copyCodeBlock(btn) {
         const pre = btn.closest('.md-code-block-wrapper').querySelector('pre code');
-        navigator.clipboard.writeText(pre.textContent).then(() => {
-            const span = btn.querySelector('span');
-            span.textContent = '已复制';
-            btn.classList.add('copied');
-            setTimeout(() => {
-                span.textContent = '复制';
-                btn.classList.remove('copied');
-            }, 2000);
-        });
+        copyText(pre.textContent, null);
+        const span = btn.querySelector('span');
+        span.textContent = '已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            span.textContent = '复制';
+            btn.classList.remove('copied');
+        }, 2000);
     }
 
     function copyPreviewHtml() {
@@ -1422,20 +1444,17 @@
             showToast('内容为空', 'error');
             return;
         }
-        navigator.clipboard.writeText(markdown).then(() => {
-            const btn = document.getElementById('copy-preview-btn');
-            const span = btn.querySelector('span');
-            const originalText = span.textContent;
-            span.textContent = '已复制!';
-            btn.classList.add('text-green-500');
-            setTimeout(() => {
-                span.textContent = originalText;
-                btn.classList.remove('text-green-500');
-            }, 2000);
-            showToast('已复制到剪贴板', 'success');
-        }).catch(err => {
-            showToast('复制失败: ' + err, 'error');
-        });
+        copyText(markdown, null);
+        const btn = document.getElementById('copy-preview-btn');
+        const span = btn.querySelector('span');
+        const originalText = span.textContent;
+        span.textContent = '已复制!';
+        btn.classList.add('text-green-500');
+        setTimeout(() => {
+            span.textContent = originalText;
+            btn.classList.remove('text-green-500');
+        }, 2000);
+        showToast('已复制到剪贴板', 'success');
     }
 
     function extractHeadings(md) {
