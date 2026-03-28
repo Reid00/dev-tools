@@ -41,7 +41,15 @@
       "Bash(powershell -Command 'Set-Content -Path $PROFILE -Value \"Invoke-Expression \\(&starship init powershell\\)\"')",
       "Bash(powershell -Command 'Get-Content $PROFILE')",
       "Bash(starship preset:*)",
-      "Bash(dir static:*)"
+      "Bash(dir static:*)",
+      "Bash(git checkout:*)",
+      "Bash(grep -v \"^$\")",
+      "Bash(grep -v \"^tool-panel$\")",
+      "Bash(grep -v \"^sidebar-item$\")",
+      "Bash(grep -v \"^copy-btn$\")",
+      "Bash(grep -v \"^result-card$\")",
+      "Bash(grep -v \"^line-num$\")",
+      "Bash(grep -v \"^select-all$\")"
     ]
   }
 }
