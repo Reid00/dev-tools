@@ -34,7 +34,14 @@
       "Bash(curl:*)",
       "WebFetch(domain:lib.rs)",
       "Bash(cargo doc:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(powershell -Command 'echo $PROFILE')",
+      "Bash(powershell -Command 'Test-Path $PROFILE')",
+      "Bash(powershell -Command 'New-Item -ItemType Directory -Force -Path \\(Split-Path $PROFILE\\)')",
+      "Bash(powershell -Command 'Set-Content -Path $PROFILE -Value \"Invoke-Expression \\(&starship init powershell\\)\"')",
+      "Bash(powershell -Command 'Get-Content $PROFILE')",
+      "Bash(starship preset:*)",
+      "Bash(dir static:*)"
     ]
   }
 }
