@@ -115,6 +115,12 @@ fn sort_value(val: &Value) -> Value {
     }
 }
 
+/// Recursively format JSON strings nested within JSON values.
+/// When a string field contains valid JSON, parse and replace it with the actual JSON structure.
+fn deep_format_value(val: &Value, depth: usize, max_depth: usize) -> Value {
+    unimplemented!("deep_format_value not yet implemented")
+}
+
 /// Convert Python-style dict string to valid JSON
 fn python_dict_to_json(input: &str) -> Result<String, String> {
     let mut result = String::with_capacity(input.len());
@@ -1050,5 +1056,81 @@ mod tests {
         )
         .await;
         assert_eq!(json["result"], r#"{"a":1,"b":2}"#);
+    }
+
+    // ── deep_format_value ──────────────────────────────────────
+
+    #[test]
+    fn test_deep_format_simple_nested() {
+        let input = serde_json::json!({"content": "{\"a\": 1, \"b\": 2}"});
+        let result = deep_format_value(&input, 0, 5);
+        assert_eq!(result["content"]["a"], 1);
+        assert_eq!(result["content"]["b"], 2);
+    }
+
+    #[test]
+    fn test_deep_format_multi_level() {
+        // content contains JSON string, which itself has a nested JSON string
+        let input = serde_json::json!({
+            "outer": "{\"inner\": \"{\\\"deep\\\": 3}\"}"
+        });
+        let result = deep_format_value(&input, 0, 5);
+        assert_eq!(result["outer"]["inner"]["deep"], 3);
+    }
+
+    #[test]
+    fn test_deep_format_depth_limit() {
+        let input = serde_json::json!({
+            "level1": "{\"level2\": \"{\\\"level3\\\": 3}\"}"
+        });
+        // max_depth=1: only parse first level
+        let result = deep_format_value(&input, 0, 1);
+        // level1 should be parsed, but level2 should remain as string
+        assert!(result["level1"]["level2"].is_string());
+        assert!(result["level1"]["level2"].as_str().unwrap().contains("level3"));
+    }
+
+    #[test]
+    fn test_deep_format_invalid_json_preserved() {
+        let input = serde_json::json!({
+            "valid": "{\"a\": 1}",
+            "invalid": "not json at all"
+        });
+        let result = deep_format_value(&input, 0, 5);
+        assert_eq!(result["valid"]["a"], 1);
+        assert_eq!(result["invalid"], "not json at all");
+    }
+
+    #[test]
+    fn test_deep_format_json_primitive() {
+        let input = serde_json::json!({
+            "num_str": "42",
+            "bool_str": "true",
+            "null_str": "null"
+        });
+        let result = deep_format_value(&input, 0, 5);
+        assert_eq!(result["num_str"], 42);
+        assert_eq!(result["bool_str"], true);
+        assert!(result["null_str"].is_null());
+    }
+
+    #[test]
+    fn test_deep_format_array_elements() {
+        let input = serde_json::json!({
+            "items": ["{\"a\": 1}", "regular string", "{\"b\": 2}"]
+        });
+        let result = deep_format_value(&input, 0, 5);
+        assert_eq!(result["items"][0]["a"], 1);
+        assert_eq!(result["items"][1], "regular string");
+        assert_eq!(result["items"][2]["b"], 2);
+    }
+
+    #[test]
+    fn test_deep_format_zero_depth() {
+        let input = serde_json::json!({"content": "{\"a\": 1}"});
+        let result = deep_format_value(&input, 0, 0);
+        // Should remain as string when max_depth=0
+        assert!(result["content"].is_string());
+        assert_eq!(result["content"], "{\"a\": 1}");
     }
 }
