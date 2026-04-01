@@ -9,6 +9,7 @@ pub struct FormatRequest {
     pub input: String,
     pub indent: Option<u32>,     // indent spaces, 0 = compact
     pub sort_keys: Option<bool>, // sort keys alphabetically
+    pub max_depth: Option<usize>, // recursion depth limit for nested JSON strings, default 5
 }
 
 #[derive(Serialize)]
