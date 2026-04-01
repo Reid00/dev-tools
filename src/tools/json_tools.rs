@@ -399,11 +399,25 @@ async fn format_json(Json(req): Json<FormatRequest>) -> Json<FormatResponse> {
     let input = remove_json_comments(req.input.trim());
     match serde_json::from_str::<Value>(&input) {
         Ok(val) => {
+            // Apply deep formatting if max_depth is set and > 0
+            let val = if let Some(max_depth) = req.max_depth {
+                if max_depth > 0 {
+                    deep_format_value(&val, 0, max_depth)
+                } else {
+                    val
+                }
+            } else {
+                // Default: no deep parsing (preserve current behavior)
+                val
+            };
+
+            // Apply key sorting if requested
             let val = if req.sort_keys.unwrap_or(false) {
                 sort_value(&val)
             } else {
                 val
             };
+
             let indent = req.indent.unwrap_or(2);
             let result = if indent == 0 {
                 serde_json::to_string(&val).unwrap_or_default()
