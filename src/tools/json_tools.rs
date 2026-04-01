@@ -900,6 +900,67 @@ mod tests {
         assert_eq!(stats["depth"].as_u64().unwrap(), 3); // a -> b -> c
     }
 
+    // ── Handler: deep formatting ───────────────────────────────
+
+    #[tokio::test]
+    async fn test_handler_format_deep_nested() {
+        let input = r#"{"content": "{\"a\": 1, \"b\": 2}"}"#;
+        let (status, json) = post_json(
+            "/format",
+            serde_json::json!({"input": input, "max_depth": 5}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(json["valid"].as_bool().unwrap());
+        // Result should contain formatted nested JSON
+        let result = json["result"].as_str().unwrap();
+        assert!(result.contains("\"a\": 1"));
+        assert!(result.contains("\"b\": 2"));
+    }
+
+    #[tokio::test]
+    async fn test_handler_format_deep_depth_limit() {
+        let input = r#"{"level1": "{\"level2\": \"{\\\"level3\\\": 3}\"}"}"#;
+        let (_, json) = post_json(
+            "/format",
+            serde_json::json!({"input": input, "max_depth": 1}),
+        )
+        .await;
+        assert!(json["valid"].as_bool().unwrap());
+        let result = json["result"].as_str().unwrap();
+        // level1 should be parsed, level2 should remain as escaped string
+        assert!(result.contains("\"level2\":"));
+        assert!(result.contains("level3"));
+    }
+
+    #[tokio::test]
+    async fn test_handler_format_deep_zero() {
+        let input = r#"{"content": "{\"a\": 1}"}"#;
+        let (_, json) = post_json(
+            "/format",
+            serde_json::json!({"input": input, "max_depth": 0}),
+        )
+        .await;
+        assert!(json["valid"].as_bool().unwrap());
+        let result = json["result"].as_str().unwrap();
+        // Should remain as escaped string
+        assert!(result.contains("\"content\": \"{\\\"a\\\": 1}\""));
+    }
+
+    #[tokio::test]
+    async fn test_handler_format_deep_unset() {
+        let input = r#"{"content": "{\"a\": 1}"}"#;
+        let (_, json) = post_json(
+            "/format",
+            serde_json::json!({"input": input}), // no max_depth
+        )
+        .await;
+        assert!(json["valid"].as_bool().unwrap());
+        let result = json["result"].as_str().unwrap();
+        // Should remain as escaped string (default: no deep parsing)
+        assert!(result.contains("\"content\": \"{\\\"a\\\": 1}\""));
+    }
+
     // ── Handler: validate_json ────────────────────────────────
 
     #[tokio::test]
