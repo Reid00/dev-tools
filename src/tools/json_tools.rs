@@ -118,7 +118,33 @@ fn sort_value(val: &Value) -> Value {
 /// Recursively format JSON strings nested within JSON values.
 /// When a string field contains valid JSON, parse and replace it with the actual JSON structure.
 fn deep_format_value(val: &Value, depth: usize, max_depth: usize) -> Value {
-    unimplemented!("deep_format_value not yet implemented")
+    if depth >= max_depth {
+        return val.clone();
+    }
+
+    match val {
+        Value::Object(map) => {
+            let mut result = serde_json::Map::new();
+            for (k, v) in map {
+                result.insert(k.clone(), deep_format_value(v, depth, max_depth));
+            }
+            Value::Object(result)
+        }
+        Value::Array(arr) => {
+            Value::Array(arr.iter().map(|v| deep_format_value(v, depth, max_depth)).collect())
+        }
+        Value::String(s) => {
+            // Try to parse as JSON
+            if let Ok(nested) = serde_json::from_str::<Value>(s) {
+                // Successfully parsed - recursively format
+                deep_format_value(&nested, depth + 1, max_depth)
+            } else {
+                // Not valid JSON - keep original
+                val.clone()
+            }
+        }
+        other => other.clone(),
+    }
 }
 
 /// Convert Python-style dict string to valid JSON
