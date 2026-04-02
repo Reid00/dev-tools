@@ -458,7 +458,7 @@
                     <div>
                         <div class="flex items-center justify-between mb-2">
                             <label class="text-sm font-medium text-gray-600">输出结果</label>
-                            <button onclick="copyText(document.getElementById('json-output-text').textContent, event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
+                            <button onclick="copyJsonOutput(event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
                         </div>
                         <div id="json-output" class="json-output-area w-full border border-gray-200 rounded-lg overflow-hidden" style="height:500px">
                             <div class="json-code-container h-full">
@@ -918,6 +918,25 @@
                 onFail();
             }
             document.body.removeChild(textarea);
+        }
+    }
+
+    // Copy JSON output - handles both collapsible tree and regular text
+    function copyJsonOutput(evt) {
+        const codeEl = document.getElementById('json-output-text');
+        const treeEl = codeEl ? codeEl.parentElement.querySelector('.json-tree') : null;
+
+        let text = '';
+        if (treeEl) {
+            // Collapsible tree view - get text content and clean it up
+            text = treeEl.textContent;
+        } else if (codeEl) {
+            // Regular text view
+            text = codeEl.textContent;
+        }
+
+        if (text) {
+            copyText(text, evt);
         }
     }
 
