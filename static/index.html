@@ -403,6 +403,8 @@
                             <option value="2">2 空格</option>
                             <option value="4" selected>4 空格</option>
                         </select>
+                        <label class="text-sm text-gray-500">深度:</label>
+                        <input type="number" id="json-max-depth" min="0" max="10" value="0" class="w-14 px-2 py-1 border border-gray-200 rounded-lg text-sm" title="嵌套JSON解析深度，0表示不解析">
                         <label class="flex items-center gap-1 text-sm text-gray-500 cursor-pointer">
                             <input type="checkbox" id="json-expand-strings" class="w-4 h-4 rounded">
                             <span>展开JSON字符串</span>
@@ -1162,12 +1164,14 @@
         if (!input.trim()) return showToast('请输入 JSON');
         const indent = parseInt(document.getElementById('json-indent').value);
         const expandStrings = document.getElementById('json-expand-strings').checked;
+        const maxDepth = parseInt(document.getElementById('json-max-depth').value) || 0;
         try {
             const data = await apiCall('/api/json/format', {
                 input: input,
                 indent: indent,
                 sort_keys: sortKeys,
-                expand_strings: expandStrings
+                expand_strings: expandStrings,
+                max_depth: maxDepth > 0 ? maxDepth : undefined
             });
             if (data.valid) {
                 updateJsonOutput(data.result);
