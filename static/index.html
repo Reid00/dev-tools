@@ -1166,9 +1166,12 @@
         // Store the original text for copying
         currentJsonOutput = text;
 
-        const el = document.getElementById('json-output-text');
-        const container = el ? el.parentElement : null;
-        if (!container) return;
+        const container = document.querySelector('.json-code-content');
+        console.log('updateJsonOutput called, container:', container);
+        if (!container) {
+            console.error('Container not found!');
+            return;
+        }
 
         // Try to parse as JSON for collapsible view
         try {
@@ -1181,12 +1184,13 @@
             return;
         } catch (e) {
             // Not valid JSON, fall back to regular display
+            console.log('JSON parse failed, using fallback:', e);
         }
 
         // Fallback: regular text display with line numbers
-        el.textContent = text;
-        el.className = `hljs language-${lang}`;
-        if (typeof hljs !== 'undefined') {
+        container.innerHTML = `<pre><code id="json-output-text" class="hljs language-${lang}">${escapeHtml(text)}</code></pre>`;
+        const el = document.getElementById('json-output-text');
+        if (el && typeof hljs !== 'undefined') {
             hljs.highlightElement(el);
         }
 
@@ -1203,12 +1207,11 @@
         }
 
         // Setup scroll sync
-        const codeContent = el.closest('.json-code-content');
-        if (codeContent && !codeContent._scrollSyncSetup) {
-            codeContent.addEventListener('scroll', () => {
-                lineNumbersEl.scrollTop = codeContent.scrollTop;
+        if (container && !container._scrollSyncSetup) {
+            container.addEventListener('scroll', () => {
+                lineNumbersEl.scrollTop = container.scrollTop;
             });
-            codeContent._scrollSyncSetup = true;
+            container._scrollSyncSetup = true;
         }
     }
 
@@ -1253,7 +1256,10 @@
             } else {
                 showJsonError(data.error);
             }
-        } catch(e) {}
+        } catch(e) {
+            console.error('jsonFormat error:', e);
+            showToast('格式化失败: ' + e.message);
+        }
     }
 
     async function jsonMinify() {

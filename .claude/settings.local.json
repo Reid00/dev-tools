@@ -68,7 +68,8 @@
       "Bash(powershell:*)",
       "Bash(taskkill /F /IM dev_tools*.exe)",
       "Bash(tasklist)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(node -e ':*)"
     ]
   }
 }
