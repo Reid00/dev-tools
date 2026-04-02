@@ -922,21 +922,12 @@
     }
 
     // Copy JSON output - handles both collapsible tree and regular text
+    // Store current JSON output for copying
+    let currentJsonOutput = '';
+
     function copyJsonOutput(evt) {
-        const codeEl = document.getElementById('json-output-text');
-        const treeEl = codeEl ? codeEl.parentElement.querySelector('.json-tree') : null;
-
-        let text = '';
-        if (treeEl) {
-            // Collapsible tree view - get text content and clean it up
-            text = treeEl.textContent;
-        } else if (codeEl) {
-            // Regular text view
-            text = codeEl.textContent;
-        }
-
-        if (text) {
-            copyText(text, evt);
+        if (currentJsonOutput) {
+            copyText(currentJsonOutput, evt);
         }
     }
 
@@ -1163,6 +1154,9 @@
     }
 
     function updateJsonOutput(text, lang = 'json') {
+        // Store the original text for copying
+        currentJsonOutput = text;
+
         const el = document.getElementById('json-output-text');
         const container = el ? el.parentElement : null;
         if (!container) return;
