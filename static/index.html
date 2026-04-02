@@ -413,6 +413,10 @@
                     <button onclick="jsonMinify()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">压缩</button>
                     <button onclick="jsonValidate()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">校验</button>
                     <button onclick="jsonFormat(true)" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors">键排序</button>
+                    <label class="flex items-center gap-1 text-sm text-gray-500 cursor-pointer ml-2">
+                        <input type="checkbox" id="json-pydict-mode" class="w-4 h-4 rounded">
+                        <span>Dict转JSON</span>
+                    </label>
                     <div class="flex items-center gap-2 ml-auto">
                         <label class="text-sm text-gray-500">缩进:</label>
                         <select id="json-indent" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
@@ -1251,9 +1255,24 @@
         const indent = parseInt(document.getElementById('json-indent').value);
         const expandStrings = document.getElementById('json-expand-strings').checked;
         const maxDepth = parseInt(document.getElementById('json-max-depth').value) || 0;
+        const pydictMode = document.getElementById('json-pydict-mode').checked;
+
         try {
+            let jsonInput = input;
+
+            // If Dict转JSON mode is enabled, first convert Python dict to JSON
+            if (pydictMode) {
+                const pydictData = await apiCall('/api/json/py-dict', { input: input });
+                if (pydictData.valid) {
+                    jsonInput = pydictData.result;
+                } else {
+                    showJsonError(pydictData.error || 'Python Dict 转换失败');
+                    return;
+                }
+            }
+
             const data = await apiCall('/api/json/format', {
-                input: input,
+                input: jsonInput,
                 indent: indent,
                 sort_keys: sortKeys,
                 expand_strings: expandStrings,
