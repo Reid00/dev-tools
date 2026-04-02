@@ -1348,7 +1348,23 @@
 
     function updatePydictOutput(text) {
         const el = document.getElementById('pydict-output-text');
-        if (!el) return;
+        const container = el ? el.parentElement : null;
+        if (!container) return;
+
+        // Try to parse as JSON for collapsible view
+        try {
+            const data = JSON.parse(text);
+            container.innerHTML = `<div class="json-tree">${renderJsonTree(data)}</div>`;
+
+            // Hide line numbers for collapsible view
+            const lineNumbersEl = document.getElementById('pydict-line-numbers');
+            if (lineNumbersEl) lineNumbersEl.style.display = 'none';
+            return;
+        } catch (e) {
+            // Not valid JSON, fall back to regular display
+        }
+
+        // Fallback: regular text display with line numbers
         el.textContent = text;
         el.className = 'hljs language-json';
         if (typeof hljs !== 'undefined') {
