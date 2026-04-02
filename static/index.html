@@ -280,7 +280,6 @@
             <nav class="flex-1 p-3 space-y-1">
                 <button onclick="switchTool('time')" data-tool="time" class="sidebar-item active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>时间转换</button>
                 <button onclick="switchTool('json')" data-tool="json" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>JSON 格式化</button>
-                <button onclick="switchTool('pydict')" data-tool="pydict" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>Dict 转 JSON</button>
                 <button onclick="switchTool('translate')" data-tool="translate" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>翻译工具</button>
                 <button onclick="switchTool('markdown')" data-tool="markdown" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>Markdown 渲染</button>
                 <button onclick="switchTool('http')" data-tool="http" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>HTTP 请求</button>
@@ -291,7 +290,6 @@
         <nav id="mobile-nav" class="md:hidden flex overflow-x-auto bg-slate-900 text-slate-300 px-2 py-2 gap-1 flex-shrink-0">
             <button onclick="switchTool('time')" data-tool="time" class="sidebar-item active flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>时间</button>
             <button onclick="switchTool('json')" data-tool="json" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>JSON</button>
-            <button onclick="switchTool('pydict')" data-tool="pydict" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>Dict</button>
             <button onclick="switchTool('translate')" data-tool="translate" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>翻译</button>
             <button onclick="switchTool('markdown')" data-tool="markdown" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>MD</button>
             <button onclick="switchTool('http')" data-tool="http" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>HTTP</button>
@@ -485,64 +483,7 @@
                 </div>
             </div>
 
-            <!-- ===== TOOL 3: Python Dict to JSON ===== -->
-            <div id="tool-pydict" class="tool-panel p-6 max-w-6xl mx-auto">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
-                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                    Python Dict 转 JSON
-                </h2>
-                <p class="text-sm text-gray-500 mb-4">支持 True/False/None、单引号、元组、末尾逗号等 Python 语法</p>
-                <!-- Toolbar -->
-                <div class="flex flex-wrap gap-2 mb-4">
-                    <button onclick="convertPyDict()" class="px-6 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">转换</button>
-                    <div class="flex items-center gap-2 ml-auto">
-                        <label class="text-sm text-gray-500">高度:</label>
-                        <select id="pydict-height" onchange="setPydictHeight(this.value)" class="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-                            <option value="400">400px</option>
-                            <option value="500" selected>500px</option>
-                            <option value="600">600px</option>
-                            <option value="700">700px</option>
-                            <option value="800">800px</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <label class="text-sm font-medium text-gray-600">Python Dict 输入</label>
-                            <div class="flex gap-1">
-                                <button onclick="copyText(document.getElementById('pydict-input').value, event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
-                                <button onclick="clearPydictInput()" class="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">清空</button>
-                            </div>
-                        </div>
-                        <div id="pydict-input-container" class="json-input-container" style="height:500px">
-                            <div id="pydict-input-line-nums" class="json-input-line-nums">
-                                <div class="line-num">1</div>
-                            </div>
-                            <div class="json-input-wrapper">
-                                <textarea id="pydict-input" placeholder="{'name': 'test', 'valid': True, 'data': None}" oninput="updatePydictInputLineNums()" onscroll="syncPydictInputScroll()"></textarea>
-                            </div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <label class="text-sm font-medium text-gray-600">JSON 输出</label>
-                            <button onclick="copyText(document.getElementById('pydict-output-text').textContent, event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
-                        </div>
-                        <div id="pydict-output" class="json-output-area w-full border border-gray-200 rounded-lg overflow-hidden" style="height:500px">
-                            <div class="json-code-container h-full">
-                                <div id="pydict-line-numbers" class="json-line-numbers" style="display:none;"></div>
-                                <div class="json-code-content">
-                                    <pre><code id="pydict-output-text" class="hljs language-json"></code></pre>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div id="pydict-error" class="mt-3 hidden text-sm text-red-500 bg-red-50 px-4 py-2 rounded-lg"></div>
-            </div>
-
-            <!-- ===== TOOL 4: Translator ===== -->
+            <!-- ===== TOOL 3: Translator ===== -->
             <div id="tool-translate" class="tool-panel p-6 max-w-6xl mx-auto">
                 <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center gap-2">
                     <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
@@ -1335,98 +1276,7 @@
         updateJsonInputLineNums();
     }
 
-    // ===== TOOL 3: Python Dict to JSON =====
-    function setPydictHeight(height) {
-        const inputContainer = document.getElementById('pydict-input-container');
-        const outputContainer = document.getElementById('pydict-output');
-        inputContainer.style.height = height + 'px';
-        outputContainer.style.height = height + 'px';
-        // Re-sync line numbers height
-        updatePydictInputLineNums();
-    }
-
-    function updatePydictInputLineNums() {
-        const textarea = document.getElementById('pydict-input');
-        const lines = textarea.value.split('\n');
-        const lineNumsEl = document.getElementById('pydict-input-line-nums');
-        lineNumsEl.innerHTML = lines.map((_, i) => `<div class="line-num">${i + 1}</div>`).join('');
-    }
-
-    function syncPydictInputScroll() {
-        const textarea = document.getElementById('pydict-input');
-        const lineNumsEl = document.getElementById('pydict-input-line-nums');
-        lineNumsEl.scrollTop = textarea.scrollTop;
-    }
-
-    function clearPydictInput() {
-        document.getElementById('pydict-input').value = '';
-        updatePydictInputLineNums();
-        document.getElementById('pydict-output-text').textContent = '';
-        document.getElementById('pydict-line-numbers').style.display = 'none';
-    }
-
-    function updatePydictOutput(text) {
-        const el = document.getElementById('pydict-output-text');
-        const container = el ? el.parentElement : null;
-        if (!container) return;
-
-        // Try to parse as JSON for collapsible view
-        try {
-            const data = JSON.parse(text);
-            container.innerHTML = `<div class="json-tree">${renderJsonTree(data)}</div>`;
-
-            // Hide line numbers for collapsible view
-            const lineNumbersEl = document.getElementById('pydict-line-numbers');
-            if (lineNumbersEl) lineNumbersEl.style.display = 'none';
-            return;
-        } catch (e) {
-            // Not valid JSON, fall back to regular display
-        }
-
-        // Fallback: regular text display with line numbers
-        el.textContent = text;
-        el.className = 'hljs language-json';
-        if (typeof hljs !== 'undefined') {
-            hljs.highlightElement(el);
-        }
-
-        // Generate line numbers
-        const lines = text.split('\n');
-        const lineNumbersEl = document.getElementById('pydict-line-numbers');
-        if (lines.length > 0 && text.trim()) {
-            lineNumbersEl.innerHTML = lines.map((_, i) => `<div class="line-num">${i + 1}</div>`).join('');
-            lineNumbersEl.style.display = 'block';
-        } else {
-            lineNumbersEl.style.display = 'none';
-        }
-
-        // Setup scroll sync
-        const codeContent = el.closest('.json-code-content');
-        if (codeContent && !codeContent._scrollSyncSetup) {
-            codeContent.addEventListener('scroll', () => {
-                lineNumbersEl.scrollTop = codeContent.scrollTop;
-            });
-            codeContent._scrollSyncSetup = true;
-        }
-    }
-
-    async function convertPyDict() {
-        const input = document.getElementById('pydict-input').value;
-        if (!input.trim()) return showToast('请输入 Python Dict');
-        try {
-            const data = await apiCall('/api/json/py-dict', { input: input });
-            if (data.valid) {
-                updatePydictOutput(data.result);
-                document.getElementById('pydict-error').classList.add('hidden');
-            } else {
-                const errEl = document.getElementById('pydict-error');
-                errEl.textContent = data.error || '转换失败';
-                errEl.classList.remove('hidden');
-            }
-        } catch(e) {}
-    }
-
-    // ===== TOOL 4: Translator =====
+    // ===== TOOL 3: Translator =====
     function updateCharCount() {
         const text = document.getElementById('translate-input').value;
         document.getElementById('translate-char-count').textContent = text.length;
@@ -2029,7 +1879,6 @@ ${preview.innerHTML}
         startCurrentTime();
         initMarked();
         updateJsonInputLineNums();
-        updatePydictInputLineNums();
         initHttpClient();
         initMarkdownEditor();
     });
