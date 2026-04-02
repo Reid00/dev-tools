@@ -10,6 +10,7 @@ pub struct FormatRequest {
     pub indent: Option<u32>,     // indent spaces, 0 = compact
     pub sort_keys: Option<bool>, // sort keys alphabetically
     pub max_depth: Option<usize>, // recursion depth limit for nested JSON strings, default 5
+    pub expand_strings: Option<bool>, // visually expand JSON strings with quotes on separate lines
 }
 
 #[derive(Serialize)]
@@ -145,6 +146,124 @@ fn deep_format_value(val: &Value, depth: usize, max_depth: usize) -> Value {
         }
         other => other.clone(),
     }
+}
+
+/// Format JSON with visual expansion of string values that contain JSON.
+/// Instead of converting string to object, it visually expands the JSON string
+/// with opening quote on one line, formatted content, and closing quote on another line.
+fn format_json_with_expanded_strings(val: &Value, indent: usize, current_indent: usize) -> String {
+    let indent_str = " ".repeat(current_indent);
+    let next_indent = current_indent + indent;
+
+    match val {
+        Value::Object(map) => {
+            if map.is_empty() {
+                format!("{}{{}}", indent_str)
+            } else {
+                let mut result = format!("{}{{\n", indent_str);
+                let items: Vec<String> = map.iter().map(|(k, v)| {
+                    let key_str = format!("{}\"{}\":", " ".repeat(next_indent), k);
+                    let val_str = format_value_with_expansion(v, indent, next_indent);
+                    format!("{} {}", key_str, val_str)
+                }).collect();
+                result.push_str(&items.join(",\n"));
+                result.push_str(&format!("\n{}}}", indent_str));
+                result
+            }
+        }
+        Value::Array(arr) => {
+            if arr.is_empty() {
+                format!("{}[]", indent_str)
+            } else {
+                let mut result = format!("{}[\n", indent_str);
+                let items: Vec<String> = arr.iter().map(|v| {
+                    format_json_with_expanded_strings(v, indent, next_indent)
+                }).collect();
+                result.push_str(&items.join(",\n"));
+                result.push_str(&format!("\n{}]", indent_str));
+                result
+            }
+        }
+        Value::String(s) => {
+            // Check if string contains valid JSON
+            if let Ok(nested) = serde_json::from_str::<Value>(s) {
+                // Visually expand: quote, formatted JSON, quote on separate lines
+                let nested_formatted = format_json_with_expanded_strings(&nested, indent, next_indent);
+                format!("\"\n{}\n{}\"", nested_formatted, indent_str)
+            } else {
+                // Regular string
+                format!("{}\"{}\"", indent_str, escape_string(s))
+            }
+        }
+        Value::Number(n) => format!("{}{}", indent_str, n),
+        Value::Bool(b) => format!("{}{}", indent_str, b),
+        Value::Null => format!("{}null", indent_str),
+    }
+}
+
+/// Format a single value (for key-value pairs)
+fn format_value_with_expansion(val: &Value, indent: usize, current_indent: usize) -> String {
+    match val {
+        Value::Object(map) => {
+            if map.is_empty() {
+                "{}".to_string()
+            } else {
+                let next_indent = current_indent + indent;
+                let mut result = "{\n".to_string();
+                let items: Vec<String> = map.iter().map(|(k, v)| {
+                    let key_str = format!("{}\"{}\":", " ".repeat(next_indent), k);
+                    let val_str = format_value_with_expansion(v, indent, next_indent);
+                    format!("{} {}", key_str, val_str)
+                }).collect();
+                result.push_str(&items.join(",\n"));
+                result.push_str(&format!("\n{}}}", " ".repeat(current_indent)));
+                result
+            }
+        }
+        Value::Array(arr) => {
+            if arr.is_empty() {
+                "[]".to_string()
+            } else {
+                let next_indent = current_indent + indent;
+                let mut result = "[\n".to_string();
+                let items: Vec<String> = arr.iter().map(|v| {
+                    format_json_with_expanded_strings(v, indent, next_indent)
+                }).collect();
+                result.push_str(&items.join(",\n"));
+                result.push_str(&format!("\n{}]", " ".repeat(current_indent)));
+                result
+            }
+        }
+        Value::String(s) => {
+            if let Ok(nested) = serde_json::from_str::<Value>(s) {
+                let next_indent = current_indent + indent;
+                let nested_formatted = format_json_with_expanded_strings(&nested, indent, next_indent);
+                format!("\"\n{}\n{}\"", nested_formatted, " ".repeat(current_indent))
+            } else {
+                format!("\"{}\"", escape_string(s))
+            }
+        }
+        Value::Number(n) => n.to_string(),
+        Value::Bool(b) => b.to_string(),
+        Value::Null => "null".to_string(),
+    }
+}
+
+/// Escape special characters in a string for JSON output
+fn escape_string(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '"' => result.push_str("\\\""),
+            '\\' => result.push_str("\\\\"),
+            '\n' => result.push_str("\\n"),
+            '\r' => result.push_str("\\r"),
+            '\t' => result.push_str("\\t"),
+            c if c.is_control() => result.push_str(&format!("\\u{:04x}", c as u32)),
+            c => result.push(c),
+        }
+    }
+    result
 }
 
 /// Convert Python-style dict string to valid JSON
@@ -418,13 +537,16 @@ async fn format_json(Json(req): Json<FormatRequest>) -> Json<FormatResponse> {
                 val
             };
 
-            let indent = req.indent.unwrap_or(2);
-            let result = if indent == 0 {
+            let indent = req.indent.unwrap_or(2) as usize;
+            let result = if req.expand_strings.unwrap_or(false) {
+                // Use custom formatter that visually expands JSON strings
+                format_json_with_expanded_strings(&val, indent, 0)
+            } else if indent == 0 {
                 serde_json::to_string(&val).unwrap_or_default()
             } else {
                 // Use custom indentation
                 let buf = Vec::new();
-                let indent_bytes = " ".repeat(indent as usize).into_bytes();
+                let indent_bytes = " ".repeat(indent).into_bytes();
                 let formatter = serde_json::ser::PrettyFormatter::with_indent(&indent_bytes);
                 let mut ser = serde_json::Serializer::with_formatter(buf, formatter);
                 serde::Serialize::serialize(&val, &mut ser).unwrap();
@@ -961,6 +1083,46 @@ mod tests {
         assert!(result.contains("\"content\": \"{\\\"a\\\": 1}\""));
     }
 
+    #[tokio::test]
+    async fn test_handler_format_openai_response_with_newlines() {
+        // 模拟真实的 OpenAI API 响应格式
+        // content 字段包含带换行符的 JSON 字符串（解析后 \n 变成真正的换行）
+        let content_json = serde_json::json!({
+            "classification": {
+                "效力位阶一级": "6-地方法规",
+                "效力位阶二级": "603-地方其他文件"
+            },
+            "extracted_info": {
+                "发文字号": "津政办发〔2021〕32 号"
+            }
+        });
+        // 将 JSON 对象转换为带换行符的字符串（模拟 API 返回的实际格式）
+        let content_str = serde_json::to_string_pretty(&content_json).unwrap();
+
+        let openai_response = serde_json::json!({
+            "id": "chatcmpl-33b4835c",
+            "choices": [{
+                "message": {
+                    "content": content_str
+                }
+            }]
+        });
+
+        let (_, json) = post_json(
+            "/format",
+            serde_json::json!({"input": serde_json::to_string(&openai_response).unwrap(), "max_depth": 5}),
+        )
+        .await;
+
+        assert!(json["valid"].as_bool().unwrap());
+        let result: serde_json::Value = serde_json::from_str(json["result"].as_str().unwrap()).unwrap();
+
+        // content 应该被解析为 JSON 对象，而不是字符串
+        let content = &result["choices"][0]["message"]["content"];
+        assert!(content.is_object(), "content should be an object, not a string");
+        assert_eq!(content["classification"]["效力位阶一级"], "6-地方法规");
+    }
+
     // ── Handler: validate_json ────────────────────────────────
 
     #[tokio::test]
@@ -1233,5 +1395,23 @@ mod tests {
         // Should remain as string when max_depth=0
         assert!(result["content"].is_string());
         assert_eq!(result["content"], "{\"a\": 1}");
+    }
+
+    #[test]
+    fn test_deep_format_json_with_newlines() {
+        // 模拟 OpenAI API 返回的 content 字段，包含带换行符的 JSON 字符串
+        // 当 JSON 被解析时，字符串中的 \n 会变成真正的换行符
+        let content_value = "{\n  \"classification\": {\n    \"效力位阶一级\": \"6-地方法规\"\n  }\n}";
+        let input = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "content": content_value
+                }
+            }]
+        });
+        let result = deep_format_value(&input, 0, 5);
+        // content 应该被解析为 JSON 对象
+        assert!(result["choices"][0]["message"]["content"].is_object());
+        assert_eq!(result["choices"][0]["message"]["content"]["classification"]["效力位阶一级"], "6-地方法规");
     }
 }
