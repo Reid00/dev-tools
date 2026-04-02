@@ -49,7 +49,26 @@
       "Bash(grep -v \"^copy-btn$\")",
       "Bash(grep -v \"^result-card$\")",
       "Bash(grep -v \"^line-num$\")",
-      "Bash(grep -v \"^select-all$\")"
+      "Bash(grep -v \"^select-all$\")",
+      "Bash(python3 -c \"import sys,json; json.load\\(sys.stdin\\); print\\('Valid JSON'\\)\")",
+      "Bash(xxd)",
+      "Bash(taskkill /F /IM dev-tools.exe)",
+      "Bash(taskkill //F //IM dev-tools.exe)",
+      "Bash(./target/release/dev-tools.exe:*)",
+      "Bash(python3:*)",
+      "Bash(xxd \"C:/Users/zhangbl/AppData/Local/Temp/test_json.txt\")",
+      "Bash(xxd \"C:/Users/zhangbl/AppData/Local/Temp/test_json2.txt\")",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(cargo check:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(git restore:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(powershell:*)",
+      "Bash(taskkill /F /IM dev_tools*.exe)",
+      "Bash(tasklist)",
+      "Bash(taskkill:*)"
     ]
   }
 }
