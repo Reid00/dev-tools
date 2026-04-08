@@ -69,7 +69,11 @@
       "Bash(taskkill /F /IM dev_tools*.exe)",
       "Bash(tasklist)",
       "Bash(taskkill:*)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "mcp__plugin_context7_context7__query-docs",
+      "Bash(wmic process:*)",
+      "Read(//tmp/**)"
     ]
   }
 }
