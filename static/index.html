@@ -1021,12 +1021,7 @@
     function copyJsonOutput(evt) {
         console.log('copyJsonOutput called, currentJsonOutput length:', currentJsonOutput.length);
         if (currentJsonOutput) {
-            navigator.clipboard.writeText(currentJsonOutput).then(() => {
-                showToast('已复制', 'success');
-            }).catch(err => {
-                console.error('Copy failed:', err);
-                showToast('复制失败');
-            });
+            copyText(currentJsonOutput, evt);
         } else {
             console.log('No JSON output to copy');
             showToast('没有内容可复制');
