@@ -30,6 +30,7 @@ async fn main() {
         .nest("/api/sub", tools::sub_convert::router())
         .nest("/api/format", tools::format::router())
         .nest("/api/text", tools::text::router())
+        .nest("/api/crypto", tools::crypto::router())
         .layer(cors);
 
     let addr = "0.0.0.0:3000";

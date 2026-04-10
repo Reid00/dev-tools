@@ -1,3 +1,4 @@
+pub mod crypto;
 pub mod encoder;
 pub mod format;
 pub mod http_client;
