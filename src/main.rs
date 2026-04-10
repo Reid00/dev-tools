@@ -6,9 +6,14 @@ use axum::routing::get;
 use tower_http::cors::{Any, CorsLayer};
 
 const INDEX_HTML: &str = include_str!("../static/index.html");
+const UTILITIES_HTML: &str = include_str!("../static/utilities.html");
 
 async fn index() -> Html<&'static str> {
     Html(INDEX_HTML)
+}
+
+async fn utilities() -> Html<&'static str> {
+    Html(UTILITIES_HTML)
 }
 
 #[tokio::main]
@@ -22,6 +27,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(index))
+        .route("/utilities", get(utilities))
         .nest("/api/time", tools::time_convert::router())
         .nest("/api/json", tools::json_tools::router())
         .nest("/api/translate", tools::translate::router())

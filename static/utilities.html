@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>开发小工具 - Dev Tools</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .nav-item { transition: all 0.2s; }
+        .nav-item:hover { background: rgba(99, 102, 241, 0.1); }
+        .nav-item.active { background: #4f46e5; color: white; }
+        .category-panel { display: none; }
+        .category-panel.active { display: grid; }
+        textarea, input[type="text"] { font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace; }
+        .tool-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 16px; }
+        .tool-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #1f2937; }
+        .tool-card textarea { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; font-size: 13px; resize: vertical; }
+        .tool-card textarea:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+        .tool-card input[type="text"] { width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; font-size: 13px; }
+        .tool-card input[type="text"]:focus { outline: none; border-color: #6366f1; }
+        .btn { padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+        .btn-primary { background: #6366f1; color: white; }
+        .btn-primary:hover { background: #4f46e5; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-secondary { background: #e5e7eb; color: #374151; }
+        .btn-secondary:hover { background: #d1d5db; }
+        .output-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; font-size: 13px; min-height: 60px; white-space: pre-wrap; word-break: break-all; }
+        .copy-link { font-size: 12px; color: #6366f1; cursor: pointer; }
+        .copy-link:hover { color: #4f46e5; }
+        .error-msg { color: #ef4444; font-size: 12px; margin-top: 4px; }
+        .success-msg { color: #10b981; font-size: 12px; margin-top: 4px; }
+        .json-output { background: #1e293b; color: #e2e8f0; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="flex h-screen">
+        <!-- 左侧导航 -->
+        <nav class="w-52 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+            <div class="p-4 border-b border-gray-200">
+                <h1 class="text-lg font-semibold text-indigo-600">开发小工具</h1>
+            </div>
+            <div class="flex-1 overflow-y-auto p-2">
+                <button class="nav-item w-full text-left px-3 py-2 rounded-lg text-sm font-medium active" data-category="encoder">🔤 编码/解码</button>
+                <button class="nav-item w-full text-left px-3 py-2 rounded-lg text-sm font-medium" data-category="format">📄 格式转换</button>
+                <button class="nav-item w-full text-left px-3 py-2 rounded-lg text-sm font-medium" data-category="text">✏️ 文本处理</button>
+                <button class="nav-item w-full text-left px-3 py-2 rounded-lg text-sm font-medium" data-category="crypto">🔐 Hash/加密</button>
+            </div>
+            <div class="p-4 border-t border-gray-200">
+                <a href="/" class="text-sm text-gray-500 hover:text-indigo-600">← 返回主页</a>
+            </div>
+        </nav>
+
+        <!-- 右侧工作区 -->
+        <main class="flex-1 overflow-y-auto p-4">
+            <!-- 编码/解码 -->
+            <div class="category-panel active grid-cols-2 gap-4" data-category="encoder">
+                <!-- Base64 -->
+                <div class="tool-card">
+                    <h3>Base64 编码/解码</h3>
+                    <textarea id="base64-input" rows="3" placeholder="输入文本..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="base64Encode()">编码</button>
+                        <button class="btn btn-success" onclick="base64Decode()">解码</button>
+                        <button class="btn btn-secondary" onclick="clearTool('base64')">清空</button>
+                    </div>
+                    <div id="base64-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('base64-output')">复制结果</span>
+                </div>
+
+                <!-- URL -->
+                <div class="tool-card">
+                    <h3>URL 编码/解码</h3>
+                    <textarea id="url-input" rows="3" placeholder="输入 URL 或文本..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="urlEncode()">编码</button>
+                        <button class="btn btn-success" onclick="urlDecode()">解码</button>
+                        <button class="btn btn-secondary" onclick="clearTool('url')">清空</button>
+                    </div>
+                    <div id="url-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('url-output')">复制结果</span>
+                </div>
+
+                <!-- HTML实体 -->
+                <div class="tool-card">
+                    <h3>HTML 实体编码/解码</h3>
+                    <textarea id="html-input" rows="3" placeholder="输入 HTML 或文本..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="htmlEncode()">编码</button>
+                        <button class="btn btn-success" onclick="htmlDecode()">解码</button>
+                        <button class="btn btn-secondary" onclick="clearTool('html')">清空</button>
+                    </div>
+                    <div id="html-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('html-output')">复制结果</span>
+                </div>
+
+                <!-- JWT -->
+                <div class="tool-card">
+                    <h3>JWT 解码</h3>
+                    <textarea id="jwt-input" rows="3" placeholder="输入 JWT Token..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="jwtDecode()">解码</button>
+                        <button class="btn btn-secondary" onclick="clearTool('jwt')">清空</button>
+                    </div>
+                    <div class="mt-2">
+                        <div class="text-xs text-gray-500 mb-1">Header:</div>
+                        <div id="jwt-header" class="json-output"></div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="text-xs text-gray-500 mb-1">Payload:</div>
+                        <div id="jwt-payload" class="json-output"></div>
+                    </div>
+                </div>
+
+                <!-- Unicode -->
+                <div class="tool-card">
+                    <h3>Unicode 编码/解码</h3>
+                    <textarea id="unicode-input" rows="3" placeholder="输入文本..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="unicodeEncode()">编码</button>
+                        <button class="btn btn-success" onclick="unicodeDecode()">解码</button>
+                        <button class="btn btn-secondary" onclick="clearTool('unicode')">清空</button>
+                    </div>
+                    <div id="unicode-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('unicode-output')">复制结果</span>
+                </div>
+            </div>
+
+            <!-- 格式转换 -->
+            <div class="category-panel grid-cols-2 gap-4" data-category="format">
+                <!-- YAML/JSON -->
+                <div class="tool-card">
+                    <h3>YAML ↔ JSON</h3>
+                    <textarea id="yaml-input" rows="4" placeholder="输入 YAML 或 JSON..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="yamlToJson()">YAML → JSON</button>
+                        <button class="btn btn-success" onclick="jsonToYaml()">JSON → YAML</button>
+                        <button class="btn btn-secondary" onclick="clearTool('yaml')">清空</button>
+                    </div>
+                    <div id="yaml-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('yaml-output')">复制结果</span>
+                </div>
+
+                <!-- XML -->
+                <div class="tool-card">
+                    <h3>XML 格式化/压缩</h3>
+                    <textarea id="xml-input" rows="4" placeholder="输入 XML..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="xmlFormat()">格式化</button>
+                        <button class="btn btn-success" onclick="xmlMinify()">压缩</button>
+                        <button class="btn btn-secondary" onclick="clearTool('xml')">清空</button>
+                    </div>
+                    <div id="xml-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('xml-output')">复制结果</span>
+                </div>
+
+                <!-- CSV/JSON -->
+                <div class="tool-card">
+                    <h3>CSV ↔ JSON</h3>
+                    <textarea id="csv-input" rows="4" placeholder="输入 CSV 或 JSON 数组..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="csvToJson()">CSV → JSON</button>
+                        <button class="btn btn-success" onclick="jsonToCsv()">JSON → CSV</button>
+                        <button class="btn btn-secondary" onclick="clearTool('csv')">清空</button>
+                    </div>
+                    <div id="csv-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('csv-output')">复制结果</span>
+                </div>
+
+                <!-- SQL -->
+                <div class="tool-card">
+                    <h3>SQL 格式化</h3>
+                    <textarea id="sql-input" rows="4" placeholder="输入 SQL 语句..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="sqlFormat()">格式化</button>
+                        <button class="btn btn-secondary" onclick="clearTool('sql')">清空</button>
+                    </div>
+                    <div id="sql-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('sql-output')">复制结果</span>
+                </div>
+            </div>
+
+            <!-- 文本处理 -->
+            <div class="category-panel grid-cols-2 gap-4" data-category="text">
+                <!-- 正则测试 -->
+                <div class="tool-card">
+                    <h3>正则表达式测试</h3>
+                    <input type="text" id="regex-pattern" placeholder="正则表达式 (如: \d+)" class="mb-2">
+                    <textarea id="regex-text" rows="3" placeholder="测试文本..."></textarea>
+                    <div class="flex gap-2 mt-2 items-center">
+                        <label class="text-xs"><input type="checkbox" id="regex-global"> 全局</label>
+                        <label class="text-xs"><input type="checkbox" id="regex-ignore"> 忽略大小写</label>
+                        <button class="btn btn-primary ml-auto" onclick="regexTest()">测试</button>
+                    </div>
+                    <div id="regex-output" class="output-box mt-2"></div>
+                </div>
+
+                <!-- 文本Diff -->
+                <div class="tool-card">
+                    <h3>文本差异对比</h3>
+                    <textarea id="diff1-input" rows="3" placeholder="原始文本..."></textarea>
+                    <textarea id="diff2-input" rows="3" placeholder="对比文本..." class="mt-2"></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="textDiff()">对比</button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('diff1-input').value='';document.getElementById('diff2-input').value='';document.getElementById('diff-output').innerHTML=''">清空</button>
+                    </div>
+                    <div id="diff-output" class="output-box mt-2" style="font-size:12px;"></div>
+                </div>
+
+                <!-- 大小写转换 -->
+                <div class="tool-card">
+                    <h3>大小写转换</h3>
+                    <input type="text" id="case-input" placeholder="输入文本...">
+                    <div class="grid grid-cols-2 gap-2 mt-2 text-xs">
+                        <div class="bg-gray-50 p-2 rounded"><b>camelCase:</b> <span id="case-camel"></span></div>
+                        <div class="bg-gray-50 p-2 rounded"><b>snake_case:</b> <span id="case-snake"></span></div>
+                        <div class="bg-gray-50 p-2 rounded"><b>kebab-case:</b> <span id="case-kebab"></span></div>
+                        <div class="bg-gray-50 p-2 rounded"><b>PascalCase:</b> <span id="case-pascal"></span></div>
+                    </div>
+                    <button class="btn btn-primary mt-2" onclick="caseConvert()">转换</button>
+                </div>
+
+                <!-- 字符统计 -->
+                <div class="tool-card">
+                    <h3>字符统计</h3>
+                    <textarea id="stats-input" rows="3" placeholder="输入文本..."></textarea>
+                    <button class="btn btn-primary mt-2" onclick="textStats()">统计</button>
+                    <div class="grid grid-cols-3 gap-2 mt-2 text-xs">
+                        <div class="bg-gray-50 p-2 rounded text-center"><b id="stats-chars">0</b><br>字符</div>
+                        <div class="bg-gray-50 p-2 rounded text-center"><b id="stats-words">0</b><br>单词</div>
+                        <div class="bg-gray-50 p-2 rounded text-center"><b id="stats-lines">0</b><br>行</div>
+                        <div class="bg-gray-50 p-2 rounded text-center"><b id="stats-bytes">0</b><br>字节</div>
+                    </div>
+                </div>
+
+                <!-- UUID -->
+                <div class="tool-card">
+                    <h3>UUID 生成器</h3>
+                    <div class="flex gap-2 items-center mb-2">
+                        <label class="text-xs">数量:</label>
+                        <input type="number" id="uuid-count" value="1" min="1" max="100" class="w-16 px-2 py-1 text-xs">
+                        <label class="text-xs"><input type="checkbox" id="uuid-hyphens" checked> 连字符</label>
+                        <select id="uuid-version" class="text-xs px-2 py-1">
+                            <option value="v4">UUID v4</option>
+                            <option value="v7">UUID v7</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="uuidGenerate()">生成</button>
+                    <div id="uuid-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('uuid-output')">复制结果</span>
+                </div>
+
+                <!-- 密码生成 -->
+                <div class="tool-card">
+                    <h3>密码生成器</h3>
+                    <div class="flex gap-2 items-center mb-2 flex-wrap">
+                        <label class="text-xs">长度:</label>
+                        <input type="number" id="pwd-length" value="16" min="4" max="64" class="w-16 px-2 py-1 text-xs">
+                        <label class="text-xs"><input type="checkbox" id="pwd-upper" checked> 大写</label>
+                        <label class="text-xs"><input type="checkbox" id="pwd-lower" checked> 小写</label>
+                        <label class="text-xs"><input type="checkbox" id="pwd-numbers" checked> 数字</label>
+                        <label class="text-xs"><input type="checkbox" id="pwd-symbols"> 符号</label>
+                    </div>
+                    <button class="btn btn-primary" onclick="passwordGenerate()">生成</button>
+                    <div id="pwd-output" class="output-box mt-2"></div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('pwd-output')">复制结果</span>
+                </div>
+            </div>
+
+            <!-- Hash/加密 -->
+            <div class="category-panel grid-cols-2 gap-4" data-category="crypto">
+                <!-- Hash -->
+                <div class="tool-card">
+                    <h3>Hash 计算</h3>
+                    <textarea id="hash-input" rows="2" placeholder="输入文本..."></textarea>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-primary" onclick="hashCompute('md5')">MD5</button>
+                        <button class="btn btn-primary" onclick="hashCompute('sha1')">SHA1</button>
+                        <button class="btn btn-primary" onclick="hashCompute('sha256')">SHA256</button>
+                        <button class="btn btn-primary" onclick="hashCompute('sha512')">SHA512</button>
+                    </div>
+                    <div class="mt-2 space-y-1">
+                        <div class="text-xs"><b>MD5:</b> <span id="hash-md5" class="font-mono text-gray-600"></span></div>
+                        <div class="text-xs"><b>SHA256:</b> <span id="hash-sha256" class="font-mono text-gray-600"></span></div>
+                    </div>
+                </div>
+
+                <!-- HMAC -->
+                <div class="tool-card">
+                    <h3>HMAC-SHA256</h3>
+                    <input type="text" id="hmac-key" placeholder="密钥..." class="mb-2">
+                    <textarea id="hmac-message" rows="2" placeholder="消息..."></textarea>
+                    <button class="btn btn-primary mt-2" onclick="hmacCompute()">计算 HMAC</button>
+                    <div class="mt-2">
+                        <div class="text-xs"><b>HMAC:</b></div>
+                        <div id="hmac-output" class="output-box text-xs"></div>
+                    </div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('hmac-output')">复制结果</span>
+                </div>
+
+                <!-- AES -->
+                <div class="tool-card col-span-2">
+                    <h3>AES 加密/解密</h3>
+                    <div class="flex gap-4">
+                        <div class="flex-1">
+                            <input type="text" id="aes-key" placeholder="密钥 (任意长度)..." class="mb-2">
+                            <textarea id="aes-input" rows="3" placeholder="输入明文或密文..."></textarea>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <button class="btn btn-primary" onclick="aesEncrypt()">加密 →</button>
+                            <button class="btn btn-success" onclick="aesDecrypt()">← 解密</button>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-xs text-gray-500 mb-1">结果:</div>
+                            <div id="aes-output" class="output-box" style="min-height:90px;"></div>
+                        </div>
+                    </div>
+                    <span class="copy-link mt-1 inline-block" onclick="copyText('aes-output')">复制结果</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 导航切换
+        document.querySelectorAll('.nav-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const cat = btn.dataset.category;
+                document.querySelectorAll('.category-panel').forEach(p => p.classList.remove('active'));
+                document.querySelector(`.category-panel[data-category="${cat}"]`).classList.add('active');
+            });
+        });
+
+        // 通用请求函数
+        async function apiPost(url, data) {
+            try {
+                const resp = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                return await resp.json();
+            } catch (e) {
+                return { error: e.message };
+            }
+        }
+
+        // 复制功能
+        function copyText(id) {
+            const el = document.getElementById(id);
+            const text = el.innerText || el.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                alert('已复制到剪贴板');
+            });
+        }
+
+        // 清空工具
+        function clearTool(name) {
+            document.getElementById(`${name}-input`).value = '';
+            document.getElementById(`${name}-output`).innerText = '';
+        }
+
+        // === 编码/解码 ===
+        async function base64Encode() {
+            const input = document.getElementById('base64-input').value;
+            const json = await apiPost('/api/encoder/base64/encode', { input });
+            document.getElementById('base64-output').innerText = json.result || json.error;
+        }
+
+        async function base64Decode() {
+            const input = document.getElementById('base64-input').value;
+            const json = await apiPost('/api/encoder/base64/decode', { input });
+            document.getElementById('base64-output').innerText = json.result || json.error;
+        }
+
+        async function urlEncode() {
+            const input = document.getElementById('url-input').value;
+            const json = await apiPost('/api/encoder/url/encode', { input });
+            document.getElementById('url-output').innerText = json.result || json.error;
+        }
+
+        async function urlDecode() {
+            const input = document.getElementById('url-input').value;
+            const json = await apiPost('/api/encoder/url/decode', { input });
+            document.getElementById('url-output').innerText = json.result || json.error;
+        }
+
+        async function htmlEncode() {
+            const input = document.getElementById('html-input').value;
+            const json = await apiPost('/api/encoder/html/encode', { input });
+            document.getElementById('html-output').innerText = json.result || json.error;
+        }
+
+        async function htmlDecode() {
+            const input = document.getElementById('html-input').value;
+            const json = await apiPost('/api/encoder/html/decode', { input });
+            document.getElementById('html-output').innerText = json.result || json.error;
+        }
+
+        async function jwtDecode() {
+            const token = document.getElementById('jwt-input').value;
+            const json = await apiPost('/api/encoder/jwt/decode', { token });
+            if (json.valid) {
+                document.getElementById('jwt-header').innerText = JSON.stringify(json.header_json, null, 2);
+                document.getElementById('jwt-payload').innerText = JSON.stringify(json.payload_json, null, 2);
+            } else {
+                document.getElementById('jwt-header').innerText = json.error || '解码失败';
+                document.getElementById('jwt-payload').innerText = '';
+            }
+        }
+
+        async function unicodeEncode() {
+            const input = document.getElementById('unicode-input').value;
+            const json = await apiPost('/api/encoder/unicode/encode', { input });
+            document.getElementById('unicode-output').innerText = json.result || json.error;
+        }
+
+        async function unicodeDecode() {
+            const input = document.getElementById('unicode-input').value;
+            const json = await apiPost('/api/encoder/unicode/decode', { input });
+            document.getElementById('unicode-output').innerText = json.result || json.error;
+        }
+
+        // === 格式转换 ===
+        async function yamlToJson() {
+            const input = document.getElementById('yaml-input').value;
+            const json = await apiPost('/api/format/yaml-to-json', { input });
+            document.getElementById('yaml-output').innerText = json.result || json.error;
+        }
+
+        async function jsonToYaml() {
+            const input = document.getElementById('yaml-input').value;
+            const json = await apiPost('/api/format/json-to-yaml', { input });
+            document.getElementById('yaml-output').innerText = json.result || json.error;
+        }
+
+        async function xmlFormat() {
+            const input = document.getElementById('xml-input').value;
+            const json = await apiPost('/api/format/xml/format', { input });
+            document.getElementById('xml-output').innerText = json.result || json.error;
+        }
+
+        async function xmlMinify() {
+            const input = document.getElementById('xml-input').value;
+            const json = await apiPost('/api/format/xml/minify', { input });
+            document.getElementById('xml-output').innerText = json.result || json.error;
+        }
+
+        async function csvToJson() {
+            const input = document.getElementById('csv-input').value;
+            const json = await apiPost('/api/format/csv-to-json', { input });
+            document.getElementById('csv-output').innerText = json.result || json.error;
+        }
+
+        async function jsonToCsv() {
+            const input = document.getElementById('csv-input').value;
+            const json = await apiPost('/api/format/json-to-csv', { input });
+            document.getElementById('csv-output').innerText = json.result || json.error;
+        }
+
+        async function sqlFormat() {
+            const input = document.getElementById('sql-input').value;
+            const json = await apiPost('/api/format/sql/format', { input });
+            document.getElementById('sql-output').innerText = json.result || json.error;
+        }
+
+        // === 文本处理 ===
+        async function regexTest() {
+            const pattern = document.getElementById('regex-pattern').value;
+            const text = document.getElementById('regex-text').value;
+            const global = document.getElementById('regex-global').checked;
+            const caseIns = document.getElementById('regex-ignore').checked;
+            const json = await apiPost('/api/text/regex/test', { pattern, text, global, case_insensitive: caseIns });
+            if (json.success) {
+                let html = `找到 ${json.matches.length} 个匹配:\n`;
+                json.matches.forEach((m, i) => {
+                    html += `${i+1}. "${m.matched}" (${m.start}-${m.end})\n`;
+                });
+                document.getElementById('regex-output').innerText = html;
+            } else {
+                document.getElementById('regex-output').innerText = json.error;
+            }
+        }
+
+        async function textDiff() {
+            const text1 = document.getElementById('diff1-input').value;
+            const text2 = document.getElementById('diff2-input').value;
+            const json = await apiPost('/api/text/diff', { text1, text2 });
+            if (json.success) {
+                let html = '';
+                json.diff.forEach(line => {
+                    const color = line.type === 'added' ? 'green' : line.type === 'removed' ? 'red' : 'gray';
+                    const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
+                    html += `<div style="color:${color}">${prefix} ${line.content}</div>`;
+                });
+                document.getElementById('diff-output').innerHTML = html + `<div class="mt-2">+${json.added} -${json.removed}</div>`;
+            }
+        }
+
+        async function caseConvert() {
+            const input = document.getElementById('case-input').value;
+            const json = await apiPost('/api/text/case/convert', { input });
+            if (json.success) {
+                document.getElementById('case-camel').innerText = json.camel_case;
+                document.getElementById('case-snake').innerText = json.snake_case;
+                document.getElementById('case-kebab').innerText = json.kebab_case;
+                document.getElementById('case-pascal').innerText = json.pascal_case;
+            }
+        }
+
+        async function textStats() {
+            const input = document.getElementById('stats-input').value;
+            const json = await apiPost('/api/text/stats', { input });
+            if (json.success) {
+                document.getElementById('stats-chars').innerText = json.chars;
+                document.getElementById('stats-words').innerText = json.words;
+                document.getElementById('stats-lines').innerText = json.lines;
+                document.getElementById('stats-bytes').innerText = json.bytes;
+            }
+        }
+
+        async function uuidGenerate() {
+            const count = parseInt(document.getElementById('uuid-count').value) || 1;
+            const hyphens = document.getElementById('uuid-hyphens').checked;
+            const version = document.getElementById('uuid-version').value;
+            const json = await apiPost('/api/text/uuid/generate', { count, hyphens, version });
+            document.getElementById('uuid-output').innerText = json.uuids ? json.uuids.join('\n') : json.error;
+        }
+
+        async function passwordGenerate() {
+            const length = parseInt(document.getElementById('pwd-length').value) || 16;
+            const uppercase = document.getElementById('pwd-upper').checked;
+            const lowercase = document.getElementById('pwd-lower').checked;
+            const numbers = document.getElementById('pwd-numbers').checked;
+            const symbols = document.getElementById('pwd-symbols').checked;
+            const json = await apiPost('/api/text/password/generate', { length, uppercase, lowercase, numbers, symbols });
+            document.getElementById('pwd-output').innerText = json.passwords ? json.passwords.join('\n') : json.error;
+        }
+
+        // === Hash/加密 ===
+        async function hashCompute(type) {
+            const input = document.getElementById('hash-input').value;
+            const json = await apiPost(`/api/crypto/${type}`, { input });
+            if (json.success) {
+                document.getElementById('hash-md5').innerText = type === 'md5' ? json.hash : '';
+                document.getElementById('hash-sha256').innerText = type === 'sha256' ? json.hash : '';
+                if (type === 'md5') document.getElementById('hash-md5').innerText = json.hash;
+                if (type === 'sha1') document.getElementById('hash-md5').innerText = `SHA1: ${json.hash}`;
+                if (type === 'sha256') document.getElementById('hash-sha256').innerText = json.hash;
+                if (type === 'sha512') document.getElementById('hash-sha256').innerText = `SHA512: ${json.hash.substring(0, 32)}...`;
+            }
+        }
+
+        async function hmacCompute() {
+            const key = document.getElementById('hmac-key').value;
+            const message = document.getElementById('hmac-message').value;
+            const json = await apiPost('/api/crypto/hmac', { key, message });
+            document.getElementById('hmac-output').innerText = json.hmac || json.error;
+        }
+
+        async function aesEncrypt() {
+            const text = document.getElementById('aes-input').value;
+            const key = document.getElementById('aes-key').value;
+            const json = await apiPost('/api/crypto/aes/encrypt', { text, key });
+            document.getElementById('aes-output').innerText = json.result || json.error;
+        }
+
+        async function aesDecrypt() {
+            const text = document.getElementById('aes-input').value;
+            const key = document.getElementById('aes-key').value;
+            const json = await apiPost('/api/crypto/aes/decrypt', { text, key });
+            document.getElementById('aes-output').innerText = json.result || json.error;
+        }
+    </script>
+</body>
+</html>
