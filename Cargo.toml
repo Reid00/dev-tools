@@ -55,6 +55,9 @@ uuid = { version = "1", features = ["v4", "v7"] }
 # Random
 rand = "0.8"
 
+# Regex
+regex = "1"
+
 [dev-dependencies]
 http-body-util = "0.1"
 tower = { version = "0.5", features = ["util"] }

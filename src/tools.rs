@@ -4,5 +4,6 @@ pub mod http_client;
 pub mod json_tools;
 pub mod markdown;
 pub mod sub_convert;
+pub mod text;
 pub mod time_convert;
 pub mod translate;
