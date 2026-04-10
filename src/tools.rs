@@ -1,3 +1,4 @@
+pub mod encoder;
 pub mod http_client;
 pub mod json_tools;
 pub mod markdown;
