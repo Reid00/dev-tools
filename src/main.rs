@@ -28,6 +28,7 @@ async fn main() {
         .nest("/api/markdown", tools::markdown::router())
         .nest("/api/http", tools::http_client::router())
         .nest("/api/sub", tools::sub_convert::router())
+        .nest("/api/encoder", tools::encoder::router())
         .nest("/api/format", tools::format::router())
         .nest("/api/text", tools::text::router())
         .nest("/api/crypto", tools::crypto::router())
