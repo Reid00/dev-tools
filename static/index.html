@@ -298,7 +298,7 @@
                 <button onclick="switchTool('markdown')" data-tool="markdown" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>Markdown 渲染</button>
                 <button onclick="switchTool('http')" data-tool="http" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>HTTP 请求</button>
                 <button onclick="switchTool('sub')" data-tool="sub" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>订阅转换</button>
-                <a href="/utilities" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium hover:bg-slate-800"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>开发小工具</a>
+                <button onclick="switchTool('utils')" data-tool="utils" class="sidebar-item w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>开发小工具</button>
             </nav>
             <div class="p-4 border-t border-slate-700 text-xs text-slate-500 text-center">Dev Tools v0.3.0</div>
         </aside>
@@ -310,7 +310,7 @@
             <button onclick="switchTool('markdown')" data-tool="markdown" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>MD</button>
             <button onclick="switchTool('http')" data-tool="http" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>HTTP</button>
             <button onclick="switchTool('sub')" data-tool="sub" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>订阅</button>
-            <a href="/utilities" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap hover:bg-slate-800"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>工具</a>
+            <button onclick="switchTool('utils')" data-tool="utils" class="sidebar-item flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>工具</button>
         </nav>
         <main class="flex-1 overflow-auto">
 
@@ -889,6 +889,267 @@
                     <div class="flex gap-2 mt-3">
                         <button onclick="parseManualInput()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">解析并转换</button>
                         <button onclick="clearSubInput()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">清空</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ===== TOOL 8: Utilities ===== -->
+            <div id="tool-utils" class="tool-panel p-4">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 flex items-center gap-2">
+                    <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                    开发小工具
+                </h2>
+
+                <!-- Category Tabs -->
+                <div class="flex gap-2 mb-4 flex-wrap">
+                    <button onclick="switchUtilsCategory('encoder')" data-utils="encoder" class="utils-tab px-4 py-2 bg-indigo-500 text-white rounded-lg text-sm font-medium">编码/解码</button>
+                    <button onclick="switchUtilsCategory('format')" data-utils="format" class="utils-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300">格式转换</button>
+                    <button onclick="switchUtilsCategory('text')" data-utils="text" class="utils-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300">文本处理</button>
+                    <button onclick="switchUtilsCategory('crypto')" data-utils="crypto" class="utils-tab px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300">Hash/加密</button>
+                </div>
+
+                <!-- Encoder Tools -->
+                <div id="utils-encoder" class="utils-panel grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- Base64 -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">Base64 编码/解码</h3>
+                        <textarea id="base64-input" rows="3" placeholder="输入文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="base64Encode()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">编码</button>
+                            <button onclick="base64Decode()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">解码</button>
+                            <button onclick="document.getElementById('base64-input').value='';document.getElementById('base64-output').innerText=''" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">清空</button>
+                        </div>
+                        <div id="base64-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[60px] whitespace-pre-wrap break-all"></div>
+                    </div>
+
+                    <!-- URL -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">URL 编码/解码</h3>
+                        <textarea id="url-input" rows="3" placeholder="输入 URL 或文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="urlEncode()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">编码</button>
+                            <button onclick="urlDecode()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">解码</button>
+                            <button onclick="document.getElementById('url-input').value='';document.getElementById('url-output').innerText=''" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">清空</button>
+                        </div>
+                        <div id="url-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[60px] whitespace-pre-wrap break-all"></div>
+                    </div>
+
+                    <!-- HTML -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">HTML 实体编码/解码</h3>
+                        <textarea id="html-input" rows="3" placeholder="输入 HTML 或文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="htmlEncode()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">编码</button>
+                            <button onclick="htmlDecode()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">解码</button>
+                            <button onclick="document.getElementById('html-input').value='';document.getElementById('html-output').innerText=''" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">清空</button>
+                        </div>
+                        <div id="html-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[60px] whitespace-pre-wrap break-all"></div>
+                    </div>
+
+                    <!-- JWT -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">JWT 解码</h3>
+                        <textarea id="jwt-input" rows="3" placeholder="输入 JWT Token..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="jwtDecode()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">解码</button>
+                            <button onclick="document.getElementById('jwt-input').value='';document.getElementById('jwt-header').innerText='';document.getElementById('jwt-payload').innerText=''" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">清空</button>
+                        </div>
+                        <div class="mt-2 grid grid-cols-2 gap-2">
+                            <div><div class="text-xs text-gray-500 mb-1">Header:</div><pre id="jwt-header" class="p-2 bg-slate-800 text-green-400 rounded text-xs overflow-auto max-h-32"></pre></div>
+                            <div><div class="text-xs text-gray-500 mb-1">Payload:</div><pre id="jwt-payload" class="p-2 bg-slate-800 text-green-400 rounded text-xs overflow-auto max-h-32"></pre></div>
+                        </div>
+                    </div>
+
+                    <!-- Unicode -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">Unicode 编码/解码</h3>
+                        <textarea id="unicode-input" rows="3" placeholder="输入文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="unicodeEncode()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">编码</button>
+                            <button onclick="unicodeDecode()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">解码</button>
+                            <button onclick="document.getElementById('unicode-input').value='';document.getElementById('unicode-output').innerText=''" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">清空</button>
+                        </div>
+                        <div id="unicode-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[60px] whitespace-pre-wrap break-all"></div>
+                    </div>
+                </div>
+
+                <!-- Format Tools -->
+                <div id="utils-format" class="utils-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- YAML/JSON -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">YAML ↔ JSON</h3>
+                        <textarea id="yaml-input" rows="4" placeholder="输入 YAML 或 JSON..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="yamlToJson()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">YAML → JSON</button>
+                            <button onclick="jsonToYaml()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">JSON → YAML</button>
+                        </div>
+                        <div id="yaml-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[80px] whitespace-pre-wrap break-all"></div>
+                    </div>
+
+                    <!-- XML -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">XML 格式化/压缩</h3>
+                        <textarea id="xml-input" rows="4" placeholder="输入 XML..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="xmlFormat()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">格式化</button>
+                            <button onclick="xmlMinify()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">压缩</button>
+                        </div>
+                        <div id="xml-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[80px] whitespace-pre-wrap break-all"></div>
+                    </div>
+
+                    <!-- CSV/JSON -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">CSV ↔ JSON</h3>
+                        <textarea id="csv-input" rows="4" placeholder="输入 CSV 或 JSON 数组..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="csvToJson()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">CSV → JSON</button>
+                            <button onclick="jsonToCsv()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">JSON → CSV</button>
+                        </div>
+                        <div id="csv-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[80px] whitespace-pre-wrap break-all"></div>
+                    </div>
+
+                    <!-- SQL -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">SQL 格式化</h3>
+                        <textarea id="sql-input" rows="4" placeholder="输入 SQL 语句..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="sqlFormat()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">格式化</button>
+                        </div>
+                        <div id="sql-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[80px] whitespace-pre-wrap"></div>
+                    </div>
+                </div>
+
+                <!-- Text Tools -->
+                <div id="utils-text" class="utils-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- Regex -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">正则表达式测试</h3>
+                        <input type="text" id="regex-pattern" placeholder="正则表达式 (如: \d+)" class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm mb-2">
+                        <textarea id="regex-text" rows="3" placeholder="测试文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2 items-center">
+                            <label class="text-xs text-gray-600"><input type="checkbox" id="regex-global" class="mr-1">全局</label>
+                            <label class="text-xs text-gray-600"><input type="checkbox" id="regex-ignore" class="mr-1">忽略大小写</label>
+                            <button onclick="regexTest()" class="ml-auto px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">测试</button>
+                        </div>
+                        <div id="regex-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[60px] whitespace-pre-wrap"></div>
+                    </div>
+
+                    <!-- Diff -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">文本差异对比</h3>
+                        <textarea id="diff1-input" rows="2" placeholder="原始文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y mb-2"></textarea>
+                        <textarea id="diff2-input" rows="2" placeholder="对比文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2">
+                            <button onclick="textDiff()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">对比</button>
+                        </div>
+                        <div id="diff-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm min-h-[60px] overflow-auto"></div>
+                    </div>
+
+                    <!-- Case -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">大小写转换</h3>
+                        <input type="text" id="case-input" placeholder="输入文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm">
+                        <button onclick="caseConvert()" class="mt-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">转换</button>
+                        <div class="mt-2 grid grid-cols-2 gap-2 text-xs">
+                            <div class="bg-gray-50 p-2 rounded"><b>camelCase:</b> <span id="case-camel" class="text-gray-600"></span></div>
+                            <div class="bg-gray-50 p-2 rounded"><b>snake_case:</b> <span id="case-snake" class="text-gray-600"></span></div>
+                            <div class="bg-gray-50 p-2 rounded"><b>kebab-case:</b> <span id="case-kebab" class="text-gray-600"></span></div>
+                            <div class="bg-gray-50 p-2 rounded"><b>PascalCase:</b> <span id="case-pascal" class="text-gray-600"></span></div>
+                        </div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">字符统计</h3>
+                        <textarea id="stats-input" rows="3" placeholder="输入文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm resize-y"></textarea>
+                        <button onclick="textStats()" class="mt-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">统计</button>
+                        <div class="mt-2 grid grid-cols-4 gap-2 text-xs">
+                            <div class="bg-gray-50 p-2 rounded text-center"><b id="stats-chars">0</b><br><span class="text-gray-500">字符</span></div>
+                            <div class="bg-gray-50 p-2 rounded text-center"><b id="stats-words">0</b><br><span class="text-gray-500">单词</span></div>
+                            <div class="bg-gray-50 p-2 rounded text-center"><b id="stats-lines">0</b><br><span class="text-gray-500">行</span></div>
+                            <div class="bg-gray-50 p-2 rounded text-center"><b id="stats-bytes">0</b><br><span class="text-gray-500">字节</span></div>
+                        </div>
+                    </div>
+
+                    <!-- UUID -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">UUID 生成器</h3>
+                        <div class="flex gap-2 items-center mb-2 flex-wrap">
+                            <label class="text-xs text-gray-600">数量:</label>
+                            <input type="number" id="uuid-count" value="1" min="1" max="100" class="w-16 px-2 py-1 border border-gray-200 rounded text-xs">
+                            <label class="text-xs text-gray-600"><input type="checkbox" id="uuid-hyphens" checked class="mr-1">连字符</label>
+                            <select id="uuid-version" class="px-2 py-1 border border-gray-200 rounded text-xs">
+                                <option value="v4">UUID v4</option>
+                                <option value="v7">UUID v7</option>
+                            </select>
+                        </div>
+                        <button onclick="uuidGenerate()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">生成</button>
+                        <div id="uuid-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[40px] whitespace-pre-wrap"></div>
+                    </div>
+
+                    <!-- Password -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">密码生成器</h3>
+                        <div class="flex gap-2 items-center mb-2 flex-wrap">
+                            <label class="text-xs text-gray-600">长度:</label>
+                            <input type="number" id="pwd-length" value="16" min="4" max="64" class="w-16 px-2 py-1 border border-gray-200 rounded text-xs">
+                            <label class="text-xs text-gray-600"><input type="checkbox" id="pwd-upper" checked class="mr-1">大写</label>
+                            <label class="text-xs text-gray-600"><input type="checkbox" id="pwd-lower" checked class="mr-1">小写</label>
+                            <label class="text-xs text-gray-600"><input type="checkbox" id="pwd-numbers" checked class="mr-1">数字</label>
+                            <label class="text-xs text-gray-600"><input type="checkbox" id="pwd-symbols" class="mr-1">符号</label>
+                        </div>
+                        <button onclick="passwordGenerate()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">生成</button>
+                        <div id="pwd-output" class="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono min-h-[40px] whitespace-pre-wrap break-all"></div>
+                    </div>
+                </div>
+
+                <!-- Crypto Tools -->
+                <div id="utils-crypto" class="utils-panel hidden grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <!-- Hash -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">Hash 计算</h3>
+                        <textarea id="hash-input" rows="2" placeholder="输入文本..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <div class="flex gap-2 mt-2 flex-wrap">
+                            <button onclick="hashCompute('md5')" class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs font-medium transition-colors">MD5</button>
+                            <button onclick="hashCompute('sha1')" class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs font-medium transition-colors">SHA1</button>
+                            <button onclick="hashCompute('sha256')" class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs font-medium transition-colors">SHA256</button>
+                            <button onclick="hashCompute('sha512')" class="px-3 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs font-medium transition-colors">SHA512</button>
+                        </div>
+                        <div class="mt-2 space-y-1">
+                            <div class="text-xs"><b>MD5:</b> <span id="hash-md5" class="font-mono text-gray-600 break-all"></span></div>
+                            <div class="text-xs"><b>SHA256:</b> <span id="hash-sha256" class="font-mono text-gray-600 break-all"></span></div>
+                        </div>
+                    </div>
+
+                    <!-- HMAC -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">HMAC-SHA256</h3>
+                        <input type="text" id="hmac-key" placeholder="密钥..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm mb-2">
+                        <textarea id="hmac-message" rows="2" placeholder="消息..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                        <button onclick="hmacCompute()" class="mt-2 px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">计算 HMAC</button>
+                        <div class="mt-2">
+                            <div class="text-xs text-gray-500 mb-1">HMAC:</div>
+                            <div id="hmac-output" class="p-2 bg-gray-50 border border-gray-200 rounded text-xs font-mono break-all"></div>
+                        </div>
+                    </div>
+
+                    <!-- AES -->
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 lg:col-span-2">
+                        <h3 class="text-base font-semibold text-gray-700 mb-3">AES 加密/解密</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div class="md:col-span-2">
+                                <input type="text" id="aes-key" placeholder="密钥 (任意长度)..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm mb-2">
+                                <textarea id="aes-input" rows="3" placeholder="输入明文或密文..." class="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y"></textarea>
+                            </div>
+                            <div class="flex flex-col gap-2">
+                                <button onclick="aesEncrypt()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">加密 →</button>
+                                <button onclick="aesDecrypt()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">← 解密</button>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <div class="text-xs text-gray-500 mb-1">结果:</div>
+                            <div id="aes-output" class="p-2 bg-gray-50 border border-gray-200 rounded text-sm font-mono break-all min-h-[60px]"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2869,6 +3130,314 @@ ${preview.innerHTML}
         document.getElementById('sub-output-section').classList.add('hidden');
         document.getElementById('sub-error').classList.add('hidden');
         currentSubConfig = null;
+    }
+
+    // ===== Utilities Tool Functions =====
+    function switchUtilsCategory(name) {
+        document.querySelectorAll('.utils-panel').forEach(p => p.classList.add('hidden'));
+        document.getElementById('utils-' + name).classList.remove('hidden');
+        document.querySelectorAll('.utils-tab').forEach(t => {
+            t.classList.remove('bg-indigo-500', 'text-white');
+            t.classList.add('bg-gray-200', 'text-gray-700');
+        });
+        document.querySelector(`[data-utils="${name}"]`).classList.remove('bg-gray-200', 'text-gray-700');
+        document.querySelector(`[data-utils="${name}"]`).classList.add('bg-indigo-500', 'text-white');
+    }
+
+    // Encoder functions
+    async function base64Encode() {
+        const input = document.getElementById('base64-input').value;
+        const resp = await fetch('/api/encoder/base64/encode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('base64-output').innerText = json.result || json.error;
+    }
+
+    async function base64Decode() {
+        const input = document.getElementById('base64-input').value;
+        const resp = await fetch('/api/encoder/base64/decode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('base64-output').innerText = json.result || json.error;
+    }
+
+    async function urlEncode() {
+        const input = document.getElementById('url-input').value;
+        const resp = await fetch('/api/encoder/url/encode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('url-output').innerText = json.result || json.error;
+    }
+
+    async function urlDecode() {
+        const input = document.getElementById('url-input').value;
+        const resp = await fetch('/api/encoder/url/decode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('url-output').innerText = json.result || json.error;
+    }
+
+    async function htmlEncode() {
+        const input = document.getElementById('html-input').value;
+        const resp = await fetch('/api/encoder/html/encode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('html-output').innerText = json.result || json.error;
+    }
+
+    async function htmlDecode() {
+        const input = document.getElementById('html-input').value;
+        const resp = await fetch('/api/encoder/html/decode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('html-output').innerText = json.result || json.error;
+    }
+
+    async function jwtDecode() {
+        const token = document.getElementById('jwt-input').value;
+        const resp = await fetch('/api/encoder/jwt/decode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token})
+        });
+        const json = await resp.json();
+        if (json.valid) {
+            document.getElementById('jwt-header').innerText = JSON.stringify(json.header_json, null, 2);
+            document.getElementById('jwt-payload').innerText = JSON.stringify(json.payload_json, null, 2);
+        } else {
+            document.getElementById('jwt-header').innerText = json.error || '解码失败';
+            document.getElementById('jwt-payload').innerText = '';
+        }
+    }
+
+    async function unicodeEncode() {
+        const input = document.getElementById('unicode-input').value;
+        const resp = await fetch('/api/encoder/unicode/encode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('unicode-output').innerText = json.result || json.error;
+    }
+
+    async function unicodeDecode() {
+        const input = document.getElementById('unicode-input').value;
+        const resp = await fetch('/api/encoder/unicode/decode', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('unicode-output').innerText = json.result || json.error;
+    }
+
+    // Format functions
+    async function yamlToJson() {
+        const input = document.getElementById('yaml-input').value;
+        const resp = await fetch('/api/format/yaml-to-json', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('yaml-output').innerText = json.result || json.error;
+    }
+
+    async function jsonToYaml() {
+        const input = document.getElementById('yaml-input').value;
+        const resp = await fetch('/api/format/json-to-yaml', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('yaml-output').innerText = json.result || json.error;
+    }
+
+    async function xmlFormat() {
+        const input = document.getElementById('xml-input').value;
+        const resp = await fetch('/api/format/xml/format', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('xml-output').innerText = json.result || json.error;
+    }
+
+    async function xmlMinify() {
+        const input = document.getElementById('xml-input').value;
+        const resp = await fetch('/api/format/xml/minify', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('xml-output').innerText = json.result || json.error;
+    }
+
+    async function csvToJson() {
+        const input = document.getElementById('csv-input').value;
+        const resp = await fetch('/api/format/csv-to-json', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('csv-output').innerText = json.result || json.error;
+    }
+
+    async function jsonToCsv() {
+        const input = document.getElementById('csv-input').value;
+        const resp = await fetch('/api/format/json-to-csv', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('csv-output').innerText = json.result || json.error;
+    }
+
+    async function sqlFormat() {
+        const input = document.getElementById('sql-input').value;
+        const resp = await fetch('/api/format/sql/format', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        document.getElementById('sql-output').innerText = json.result || json.error;
+    }
+
+    // Text functions
+    async function regexTest() {
+        const pattern = document.getElementById('regex-pattern').value;
+        const text = document.getElementById('regex-text').value;
+        const global = document.getElementById('regex-global').checked;
+        const caseIns = document.getElementById('regex-ignore').checked;
+        const resp = await fetch('/api/text/regex/test', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({pattern, text, global, case_insensitive: caseIns})
+        });
+        const json = await resp.json();
+        if (json.success) {
+            let html = '找到 ' + json.matches.length + ' 个匹配:\n';
+            json.matches.forEach((m, i) => {
+                html += (i+1) + '. "' + m.matched + '" (' + m.start + '-' + m.end + ')\n';
+            });
+            document.getElementById('regex-output').innerText = html;
+        } else {
+            document.getElementById('regex-output').innerText = json.error;
+        }
+    }
+
+    async function textDiff() {
+        const text1 = document.getElementById('diff1-input').value;
+        const text2 = document.getElementById('diff2-input').value;
+        const resp = await fetch('/api/text/diff', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text1, text2})
+        });
+        const json = await resp.json();
+        if (json.success) {
+            let html = '';
+            json.diff.forEach(line => {
+                const color = line.type === 'added' ? 'green' : line.type === 'removed' ? 'red' : 'gray';
+                const prefix = line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ' ';
+                html += '<div style="color:' + color + '">' + prefix + ' ' + escapeHtml(line.content) + '</div>';
+            });
+            document.getElementById('diff-output').innerHTML = html + '<div class="mt-2 text-gray-500">+' + json.added + ' -' + json.removed + '</div>';
+        }
+    }
+
+    async function caseConvert() {
+        const input = document.getElementById('case-input').value;
+        const resp = await fetch('/api/text/case/convert', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        if (json.success) {
+            document.getElementById('case-camel').innerText = json.camel_case;
+            document.getElementById('case-snake').innerText = json.snake_case;
+            document.getElementById('case-kebab').innerText = json.kebab_case;
+            document.getElementById('case-pascal').innerText = json.pascal_case;
+        }
+    }
+
+    async function textStats() {
+        const input = document.getElementById('stats-input').value;
+        const resp = await fetch('/api/text/stats', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        if (json.success) {
+            document.getElementById('stats-chars').innerText = json.chars;
+            document.getElementById('stats-words').innerText = json.words;
+            document.getElementById('stats-lines').innerText = json.lines;
+            document.getElementById('stats-bytes').innerText = json.bytes;
+        }
+    }
+
+    async function uuidGenerate() {
+        const count = parseInt(document.getElementById('uuid-count').value) || 1;
+        const hyphens = document.getElementById('uuid-hyphens').checked;
+        const version = document.getElementById('uuid-version').value;
+        const resp = await fetch('/api/text/uuid/generate', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({count, hyphens, version})
+        });
+        const json = await resp.json();
+        document.getElementById('uuid-output').innerText = json.uuids ? json.uuids.join('\n') : json.error;
+    }
+
+    async function passwordGenerate() {
+        const length = parseInt(document.getElementById('pwd-length').value) || 16;
+        const uppercase = document.getElementById('pwd-upper').checked;
+        const lowercase = document.getElementById('pwd-lower').checked;
+        const numbers = document.getElementById('pwd-numbers').checked;
+        const symbols = document.getElementById('pwd-symbols').checked;
+        const resp = await fetch('/api/text/password/generate', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({length, uppercase, lowercase, numbers, symbols})
+        });
+        const json = await resp.json();
+        document.getElementById('pwd-output').innerText = json.passwords ? json.passwords.join('\n') : json.error;
+    }
+
+    // Crypto functions
+    async function hashCompute(type) {
+        const input = document.getElementById('hash-input').value;
+        const resp = await fetch('/api/crypto/' + type, {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({input})
+        });
+        const json = await resp.json();
+        if (json.success) {
+            if (type === 'md5') {
+                document.getElementById('hash-md5').innerText = json.hash;
+            } else if (type === 'sha1') {
+                document.getElementById('hash-md5').innerText = 'SHA1: ' + json.hash;
+            } else if (type === 'sha256') {
+                document.getElementById('hash-sha256').innerText = json.hash;
+            } else if (type === 'sha512') {
+                document.getElementById('hash-sha256').innerText = 'SHA512: ' + json.hash.substring(0, 32) + '...';
+            }
+        }
+    }
+
+    async function hmacCompute() {
+        const key = document.getElementById('hmac-key').value;
+        const message = document.getElementById('hmac-message').value;
+        const resp = await fetch('/api/crypto/hmac', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({key, message})
+        });
+        const json = await resp.json();
+        document.getElementById('hmac-output').innerText = json.hmac || json.error;
+    }
+
+    async function aesEncrypt() {
+        const text = document.getElementById('aes-input').value;
+        const key = document.getElementById('aes-key').value;
+        const resp = await fetch('/api/crypto/aes/encrypt', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text, key})
+        });
+        const json = await resp.json();
+        document.getElementById('aes-output').innerText = json.result || json.error;
+    }
+
+    async function aesDecrypt() {
+        const text = document.getElementById('aes-input').value;
+        const key = document.getElementById('aes-key').value;
+        const resp = await fetch('/api/crypto/aes/decrypt', {
+            method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({text, key})
+        });
+        const json = await resp.json();
+        document.getElementById('aes-output').innerText = json.result || json.error;
     }
     </script>
 </body>
