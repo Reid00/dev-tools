@@ -1,12 +1,60 @@
 use axum::{Json, Router, routing::post};
 use chrono::{DateTime, Datelike, Local, NaiveDateTime, TimeZone, Utc, Weekday};
 use chrono_tz::Tz;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
+
+// ── Custom deserializer: accepts both int and float ────────────────
+
+fn deserialize_number_from_number<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    let val = serde_json::Value::deserialize(deserializer)?;
+    match val {
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Ok(i)
+            } else if let Some(f) = n.as_f64() {
+                Ok(f.round() as i64)
+            } else {
+                Err(Error::custom("expected a valid number"))
+            }
+        }
+        _ => Err(Error::custom("expected a number")),
+    }
+}
+
+fn deserialize_vec_number_from_numbers<'de, D>(deserializer: D) -> Result<Vec<i64>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    let vals = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    let mut result = Vec::with_capacity(vals.len());
+    for val in vals {
+        match val {
+            serde_json::Value::Number(n) => {
+                let i = if let Some(i) = n.as_i64() {
+                    i
+                } else if let Some(f) = n.as_f64() {
+                    f.round() as i64
+                } else {
+                    return Err(Error::custom("expected a valid number"));
+                };
+                result.push(i);
+            }
+            _ => return Err(Error::custom("expected a number")),
+        }
+    }
+    Ok(result)
+}
 
 // ── Request / Response types ───────────────────────────────────────
 
 #[derive(Deserialize)]
 pub struct TimestampToDatetime {
+    #[serde(deserialize_with = "deserialize_number_from_number")]
     pub timestamp: i64,
     pub timezone: Option<String>, // e.g. "Asia/Shanghai", "UTC"
 }
@@ -79,6 +127,7 @@ pub struct NowResult {
 
 #[derive(Deserialize)]
 pub struct BatchTimestampRequest {
+    #[serde(deserialize_with = "deserialize_vec_number_from_numbers")]
     pub timestamps: Vec<i64>,
     pub timezone: Option<String>,
 }
@@ -854,5 +903,36 @@ mod tests {
         .await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(json["results"].as_array().unwrap().len(), 0);
+    }
+
+    // ── Float timestamp support ───────────────────────────────
+
+    #[tokio::test]
+    async fn test_handler_timestamp_float() {
+        let (status, json) = post_json(
+            "/timestamp-to-datetime",
+            serde_json::json!({"timestamp": 1700000000.5}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        // 1700000000.5 rounds to 1700000001 (Rust rounds 0.5 away from zero)
+        assert_eq!(json["unix_sec"], 1700000001);
+    }
+
+    #[tokio::test]
+    async fn test_handler_batch_timestamp_floats() {
+        let (status, json) = post_json(
+            "/batch-timestamp",
+            serde_json::json!({
+                "timestamps": [1700000000.1, 0.0, 1_700_000_000.999]
+            }),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        let results = json["results"].as_array().unwrap();
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0]["unix_sec"], 1700000000);
+        assert_eq!(results[1]["unix_sec"], 0);
+        assert_eq!(results[2]["unix_sec"], 1700000001);
     }
 }
