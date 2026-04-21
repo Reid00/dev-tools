@@ -120,8 +120,8 @@ async fn json_to_yaml(Json(req): Json<JsonToYamlRequest>) -> Json<JsonToYamlResp
 
 async fn xml_format(Json(req): Json<XmlRequest>) -> Json<XmlResponse> {
     use quick_xml::Reader;
-    use quick_xml::events::Event;
     use quick_xml::Writer;
+    use quick_xml::events::Event;
     use std::io::Cursor;
 
     let mut reader = Reader::from_str(&req.input);
@@ -140,33 +140,51 @@ async fn xml_format(Json(req): Json<XmlRequest>) -> Json<XmlResponse> {
                     });
                 }
             }
-            Err(e) => return Json(XmlResponse {
-                result: String::new(),
-                success: false,
-                error: Some(format!("XML 解析错误: {:?}", e)),
-            }),
+            Err(e) => {
+                return Json(XmlResponse {
+                    result: String::new(),
+                    success: false,
+                    error: Some(format!("XML 解析错误: {:?}", e)),
+                });
+            }
         }
         buf.clear();
     }
 
     let result = String::from_utf8(writer.into_inner().into_inner()).unwrap_or_default();
-    Json(XmlResponse { result, success: true, error: None })
+    Json(XmlResponse {
+        result,
+        success: true,
+        error: None,
+    })
 }
 
 async fn xml_minify(Json(req): Json<XmlRequest>) -> Json<XmlResponse> {
     let result = req.input.split_whitespace().collect::<Vec<_>>().join("");
-    Json(XmlResponse { result, success: true, error: None })
+    Json(XmlResponse {
+        result,
+        success: true,
+        error: None,
+    })
 }
 
 // ── Handlers: CSV ↔ JSON ───────────────────────────────────────────
 
 async fn csv_to_json(Json(req): Json<CsvToJsonRequest>) -> Json<CsvToJsonResponse> {
-    let delimiter = req.delimiter.unwrap_or_else(|| ",".to_string()).chars().next().unwrap_or(',');
+    let delimiter = req
+        .delimiter
+        .unwrap_or_else(|| ",".to_string())
+        .chars()
+        .next()
+        .unwrap_or(',');
     let mut reader = csv::ReaderBuilder::new()
         .delimiter(delimiter as u8)
         .from_reader(req.input.as_bytes());
 
-    let headers: Vec<String> = reader.headers().map(|h| h.iter().map(|s| s.to_string()).collect()).unwrap_or_default();
+    let headers: Vec<String> = reader
+        .headers()
+        .map(|h| h.iter().map(|s| s.to_string()).collect())
+        .unwrap_or_default();
     let mut result: Vec<serde_json::Map<String, Value>> = Vec::new();
 
     for record in reader.records() {
@@ -178,12 +196,14 @@ async fn csv_to_json(Json(req): Json<CsvToJsonRequest>) -> Json<CsvToJsonRespons
                     obj.insert(h.clone(), Value::String(val));
                 }
                 result.push(obj);
-            },
-            Err(e) => return Json(CsvToJsonResponse {
-                result: String::new(),
-                success: false,
-                error: Some(format!("CSV 解析错误: {}", e)),
-            }),
+            }
+            Err(e) => {
+                return Json(CsvToJsonResponse {
+                    result: String::new(),
+                    success: false,
+                    error: Some(format!("CSV 解析错误: {}", e)),
+                });
+            }
         }
     }
 
@@ -197,33 +217,43 @@ async fn csv_to_json(Json(req): Json<CsvToJsonRequest>) -> Json<CsvToJsonRespons
 async fn json_to_csv(Json(req): Json<JsonToCsvRequest>) -> Json<JsonToCsvResponse> {
     let value: Value = match serde_json::from_str(&req.input) {
         Ok(v) => v,
-        Err(e) => return Json(JsonToCsvResponse {
-            result: String::new(),
-            success: false,
-            error: Some(format!("JSON 解析错误: {}", e)),
-        }),
+        Err(e) => {
+            return Json(JsonToCsvResponse {
+                result: String::new(),
+                success: false,
+                error: Some(format!("JSON 解析错误: {}", e)),
+            });
+        }
     };
 
     let arr = match value.as_array() {
         Some(a) => a,
-        None => return Json(JsonToCsvResponse {
-            result: String::new(),
-            success: false,
-            error: Some("JSON 必须是数组格式".to_string()),
-        }),
+        None => {
+            return Json(JsonToCsvResponse {
+                result: String::new(),
+                success: false,
+                error: Some("JSON 必须是数组格式".to_string()),
+            });
+        }
     };
 
     if arr.is_empty() {
-        return Json(JsonToCsvResponse { result: String::new(), success: true, error: None });
+        return Json(JsonToCsvResponse {
+            result: String::new(),
+            success: true,
+            error: None,
+        });
     }
 
     let headers: Vec<&str> = match arr[0].as_object() {
         Some(obj) => obj.keys().map(|s| s.as_str()).collect(),
-        None => return Json(JsonToCsvResponse {
-            result: String::new(),
-            success: false,
-            error: Some("数组元素必须是对象".to_string()),
-        }),
+        None => {
+            return Json(JsonToCsvResponse {
+                result: String::new(),
+                success: false,
+                error: Some("数组元素必须是对象".to_string()),
+            });
+        }
     };
 
     let mut wtr = csv::Writer::from_writer(Vec::new());
@@ -231,25 +261,36 @@ async fn json_to_csv(Json(req): Json<JsonToCsvRequest>) -> Json<JsonToCsvRespons
 
     for item in arr {
         if let Some(obj) = item.as_object() {
-            let record: Vec<String> = headers.iter().map(|h| {
-                obj.get(*h).and_then(|v| v.as_str()).unwrap_or("").to_string()
-            }).collect();
+            let record: Vec<String> = headers
+                .iter()
+                .map(|h| {
+                    obj.get(*h)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string()
+                })
+                .collect();
             wtr.write_record(&record).unwrap();
         }
     }
 
     let result = String::from_utf8(wtr.into_inner().unwrap()).unwrap_or_default();
-    Json(JsonToCsvResponse { result, success: true, error: None })
+    Json(JsonToCsvResponse {
+        result,
+        success: true,
+        error: None,
+    })
 }
 
 // ── Handlers: SQL Format ───────────────────────────────────────────
 
 fn format_sql(sql: &str) -> String {
-    let keywords = ["SELECT", "FROM", "WHERE", "JOIN", "ON", "AND", "OR", "ORDER", "BY",
-                    "GROUP", "HAVING", "INSERT", "INTO", "VALUES", "UPDATE", "SET", "DELETE",
-                    "CREATE", "TABLE", "ALTER", "DROP", "INDEX", "INNER", "LEFT", "RIGHT",
-                    "OUTER", "FULL", "UNION", "DISTINCT", "LIMIT", "OFFSET", "AS", "IN",
-                    "NOT", "NULL", "IS", "LIKE", "BETWEEN", "CASE", "WHEN", "THEN", "ELSE", "END"];
+    let keywords = [
+        "SELECT", "FROM", "WHERE", "JOIN", "ON", "AND", "OR", "ORDER", "BY", "GROUP", "HAVING",
+        "INSERT", "INTO", "VALUES", "UPDATE", "SET", "DELETE", "CREATE", "TABLE", "ALTER", "DROP",
+        "INDEX", "INNER", "LEFT", "RIGHT", "OUTER", "FULL", "UNION", "DISTINCT", "LIMIT", "OFFSET",
+        "AS", "IN", "NOT", "NULL", "IS", "LIKE", "BETWEEN", "CASE", "WHEN", "THEN", "ELSE", "END",
+    ];
 
     let mut result = sql.to_uppercase();
 
@@ -265,17 +306,25 @@ fn format_sql(sql: &str) -> String {
     let mut indent = 0;
     for line in lines {
         let trimmed = line.trim();
-        if trimmed.is_empty() { continue; }
+        if trimmed.is_empty() {
+            continue;
+        }
 
-        if trimmed.starts_with("FROM") || trimmed.starts_with("WHERE")
-            || trimmed.starts_with("ORDER") || trimmed.starts_with("GROUP")
-            || trimmed.starts_with("HAVING") || trimmed.starts_with("LIMIT") {
+        if trimmed.starts_with("FROM")
+            || trimmed.starts_with("WHERE")
+            || trimmed.starts_with("ORDER")
+            || trimmed.starts_with("GROUP")
+            || trimmed.starts_with("HAVING")
+            || trimmed.starts_with("LIMIT")
+        {
             indent = 0;
         }
 
         formatted.push(format!("{}{}", "  ".repeat(indent), trimmed));
 
-        if trimmed.starts_with("SELECT") { indent = 1; }
+        if trimmed.starts_with("SELECT") {
+            indent = 1;
+        }
     }
 
     formatted.join("\n")
@@ -355,7 +404,12 @@ mod tests {
         let xml = "<root>  <item>  text  </item>  </root>";
         let (_, json) = post_json("/xml/minify", serde_json::json!({"input": xml})).await;
         assert!(json["success"].as_bool().unwrap());
-        assert!(json["result"].as_str().unwrap().contains("<root><item>text</item></root>"));
+        assert!(
+            json["result"]
+                .as_str()
+                .unwrap()
+                .contains("<root><item>text</item></root>")
+        );
     }
 
     #[tokio::test]

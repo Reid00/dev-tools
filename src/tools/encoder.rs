@@ -108,13 +108,16 @@ async fn base64_decode(Json(req): Json<Base64Request>) -> Json<Base64Response> {
 async fn url_encode(Json(req): Json<UrlRequest>) -> Json<UrlResponse> {
     let encoded = if req.encode_all.unwrap_or(false) {
         // 编码所有非字母数字字符
-        req.input.chars().map(|c| {
-            if c.is_ascii_alphanumeric() {
-                c.to_string()
-            } else {
-                format!("%{:02X}", c as u32)
-            }
-        }).collect::<String>()
+        req.input
+            .chars()
+            .map(|c| {
+                if c.is_ascii_alphanumeric() {
+                    c.to_string()
+                } else {
+                    format!("%{:02X}", c as u32)
+                }
+            })
+            .collect::<String>()
     } else {
         // 仅编码 URL 特殊字符
         urlencoding::encode(&req.input).into_owned()
@@ -144,15 +147,17 @@ async fn url_decode(Json(req): Json<UrlRequest>) -> Json<UrlResponse> {
 // ── HTML Entity Encode/Decode ───────────────────────────────────────
 
 fn encode_html_entities(s: &str) -> String {
-    s.chars().map(|c| match c {
-        '<' => "&lt;".to_string(),
-        '>' => "&gt;".to_string(),
-        '&' => "&amp;".to_string(),
-        '"' => "&quot;".to_string(),
-        '\'' => "&apos;".to_string(),
-        c if c.is_control() || !c.is_ascii() => format!("&#{};", c as u32),
-        c => c.to_string(),
-    }).collect()
+    s.chars()
+        .map(|c| match c {
+            '<' => "&lt;".to_string(),
+            '>' => "&gt;".to_string(),
+            '&' => "&amp;".to_string(),
+            '"' => "&quot;".to_string(),
+            '\'' => "&apos;".to_string(),
+            c if c.is_control() || !c.is_ascii() => format!("&#{};", c as u32),
+            c => c.to_string(),
+        })
+        .collect()
 }
 
 fn decode_html_entities(s: &str) -> String {
@@ -166,7 +171,7 @@ fn decode_html_entities(s: &str) -> String {
                 end += 1;
             }
             if end < chars.len() && chars[end] == ';' {
-                let entity: String = chars[i+1..end].iter().collect();
+                let entity: String = chars[i + 1..end].iter().collect();
                 let decoded: Option<u32> = match entity.as_str() {
                     "lt" => Some('<' as u32),
                     "gt" => Some('>' as u32),
@@ -181,7 +186,7 @@ fn decode_html_entities(s: &str) -> String {
                         } else {
                             num_str.parse::<u32>().ok()
                         }
-                    },
+                    }
                     _ => None,
                 };
                 if let Some(code) = decoded {
@@ -232,27 +237,47 @@ async fn jwt_decode(Json(req): Json<JwtRequest>) -> Json<JwtResponse> {
     let header = match STANDARD_NO_PAD.decode(parts[0]) {
         Ok(bytes) => match String::from_utf8(bytes) {
             Ok(s) => s,
-            Err(_) => return Json(JwtResponse { valid: false, error: Some("Header UTF-8 解码失败".to_string()), ..Default::default() }),
-        },
-        Err(_) => {
-            match base64::engine::general_purpose::STANDARD.decode(parts[0]) {
-                Ok(bytes) => String::from_utf8(bytes).unwrap_or_default(),
-                Err(_) => return Json(JwtResponse { valid: false, error: Some("Header Base64 解码失败".to_string()), ..Default::default() }),
+            Err(_) => {
+                return Json(JwtResponse {
+                    valid: false,
+                    error: Some("Header UTF-8 解码失败".to_string()),
+                    ..Default::default()
+                });
             }
-        }
+        },
+        Err(_) => match base64::engine::general_purpose::STANDARD.decode(parts[0]) {
+            Ok(bytes) => String::from_utf8(bytes).unwrap_or_default(),
+            Err(_) => {
+                return Json(JwtResponse {
+                    valid: false,
+                    error: Some("Header Base64 解码失败".to_string()),
+                    ..Default::default()
+                });
+            }
+        },
     };
 
     let payload = match STANDARD_NO_PAD.decode(parts[1]) {
         Ok(bytes) => match String::from_utf8(bytes) {
             Ok(s) => s,
-            Err(_) => return Json(JwtResponse { valid: false, error: Some("Payload UTF-8 解码失败".to_string()), ..Default::default() }),
-        },
-        Err(_) => {
-            match base64::engine::general_purpose::STANDARD.decode(parts[1]) {
-                Ok(bytes) => String::from_utf8(bytes).unwrap_or_default(),
-                Err(_) => return Json(JwtResponse { valid: false, error: Some("Payload Base64 解码失败".to_string()), ..Default::default() }),
+            Err(_) => {
+                return Json(JwtResponse {
+                    valid: false,
+                    error: Some("Payload UTF-8 解码失败".to_string()),
+                    ..Default::default()
+                });
             }
-        }
+        },
+        Err(_) => match base64::engine::general_purpose::STANDARD.decode(parts[1]) {
+            Ok(bytes) => String::from_utf8(bytes).unwrap_or_default(),
+            Err(_) => {
+                return Json(JwtResponse {
+                    valid: false,
+                    error: Some("Payload Base64 解码失败".to_string()),
+                    ..Default::default()
+                });
+            }
+        },
     };
 
     let header_json: Option<serde_json::Value> = serde_json::from_str(&header).ok();
@@ -272,13 +297,17 @@ async fn jwt_decode(Json(req): Json<JwtRequest>) -> Json<JwtResponse> {
 // ── Unicode Encode/Decode ───────────────────────────────────────────
 
 async fn unicode_encode(Json(req): Json<UnicodeRequest>) -> Json<UnicodeResponse> {
-    let result = req.input.chars().map(|c| {
-        if c.is_ascii() {
-            c.to_string()
-        } else {
-            format!("\\u{:04x}", c as u32)
-        }
-    }).collect::<String>();
+    let result = req
+        .input
+        .chars()
+        .map(|c| {
+            if c.is_ascii() {
+                c.to_string()
+            } else {
+                format!("\\u{:04x}", c as u32)
+            }
+        })
+        .collect::<String>();
     Json(UnicodeResponse {
         result,
         success: true,
@@ -293,7 +322,7 @@ async fn unicode_decode(Json(req): Json<UnicodeRequest>) -> Json<UnicodeResponse
     while i < chars.len() {
         if chars[i] == '\\' && i + 1 < chars.len() && chars[i + 1] == 'u' {
             if i + 5 < chars.len() {
-                let hex: String = chars[i+2..i+6].iter().collect();
+                let hex: String = chars[i + 2..i + 6].iter().collect();
                 if let Ok(code) = u32::from_str_radix(&hex, 16) {
                     if let Some(c) = char::from_u32(code) {
                         result.push(c);
@@ -353,7 +382,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_base64_encode() {
-        let (status, json) = post_json("/base64/encode", serde_json::json!({"input": "hello"})).await;
+        let (status, json) =
+            post_json("/base64/encode", serde_json::json!({"input": "hello"})).await;
         assert_eq!(status, StatusCode::OK);
         assert!(json["success"].as_bool().unwrap());
         assert_eq!(json["result"], "aGVsbG8=");
@@ -361,7 +391,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_base64_decode() {
-        let (status, json) = post_json("/base64/decode", serde_json::json!({"input": "aGVsbG8="})).await;
+        let (status, json) =
+            post_json("/base64/decode", serde_json::json!({"input": "aGVsbG8="})).await;
         assert_eq!(status, StatusCode::OK);
         assert!(json["success"].as_bool().unwrap());
         assert_eq!(json["result"], "hello");
@@ -369,14 +400,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_base64_decode_invalid() {
-        let (_, json) = post_json("/base64/decode", serde_json::json!({"input": "invalid!!"})).await;
+        let (_, json) =
+            post_json("/base64/decode", serde_json::json!({"input": "invalid!!"})).await;
         assert!(!json["success"].as_bool().unwrap());
         assert!(json["error"].is_string());
     }
 
     #[tokio::test]
     async fn test_url_encode() {
-        let (status, json) = post_json("/url/encode", serde_json::json!({"input": "hello world"})).await;
+        let (status, json) =
+            post_json("/url/encode", serde_json::json!({"input": "hello world"})).await;
         assert_eq!(status, StatusCode::OK);
         assert!(json["success"].as_bool().unwrap());
         assert_eq!(json["result"], "hello%20world");
@@ -384,7 +417,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_url_decode() {
-        let (status, json) = post_json("/url/decode", serde_json::json!({"input": "hello%20world"})).await;
+        let (status, json) =
+            post_json("/url/decode", serde_json::json!({"input": "hello%20world"})).await;
         assert_eq!(status, StatusCode::OK);
         assert!(json["success"].as_bool().unwrap());
         assert_eq!(json["result"], "hello world");
@@ -392,14 +426,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_html_encode() {
-        let (_, json) = post_json("/html/encode", serde_json::json!({"input": "<div>test</div>"})).await;
+        let (_, json) = post_json(
+            "/html/encode",
+            serde_json::json!({"input": "<div>test</div>"}),
+        )
+        .await;
         assert!(json["success"].as_bool().unwrap());
         assert_eq!(json["result"], "&lt;div&gt;test&lt;/div&gt;");
     }
 
     #[tokio::test]
     async fn test_html_decode() {
-        let (_, json) = post_json("/html/decode", serde_json::json!({"input": "&lt;div&gt;"})).await;
+        let (_, json) =
+            post_json("/html/decode", serde_json::json!({"input": "&lt;div&gt;"})).await;
         assert!(json["success"].as_bool().unwrap());
         assert_eq!(json["result"], "<div>");
     }
@@ -421,7 +460,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_unicode_decode() {
-        let (_, json) = post_json("/unicode/decode", serde_json::json!({"input": "\\u4f60\\u597d"})).await;
+        let (_, json) = post_json(
+            "/unicode/decode",
+            serde_json::json!({"input": "\\u4f60\\u597d"}),
+        )
+        .await;
         assert!(json["success"].as_bool().unwrap());
         assert_eq!(json["result"], "你好");
     }

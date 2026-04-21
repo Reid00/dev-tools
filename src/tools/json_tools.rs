@@ -7,9 +7,9 @@ use serde_json::Value;
 #[derive(Deserialize)]
 pub struct FormatRequest {
     pub input: String,
-    pub indent: Option<u32>,     // indent spaces, 0 = compact
-    pub sort_keys: Option<bool>, // sort keys alphabetically
-    pub max_depth: Option<usize>, // recursion depth limit for nested JSON strings, default 5
+    pub indent: Option<u32>,          // indent spaces, 0 = compact
+    pub sort_keys: Option<bool>,      // sort keys alphabetically
+    pub max_depth: Option<usize>,     // recursion depth limit for nested JSON strings, default 5
     pub expand_strings: Option<bool>, // visually expand JSON strings with quotes on separate lines
 }
 
@@ -80,21 +80,15 @@ pub struct MinifyResponse {
 
 fn count_depth(val: &Value) -> usize {
     match val {
-        Value::Object(map) => {
-            1 + map.values().map(count_depth).max().unwrap_or(0)
-        }
-        Value::Array(arr) => {
-            1 + arr.iter().map(count_depth).max().unwrap_or(0)
-        }
+        Value::Object(map) => 1 + map.values().map(count_depth).max().unwrap_or(0),
+        Value::Array(arr) => 1 + arr.iter().map(count_depth).max().unwrap_or(0),
         _ => 0,
     }
 }
 
 fn count_keys(val: &Value) -> usize {
     match val {
-        Value::Object(map) => {
-            map.len() + map.values().map(count_keys).sum::<usize>()
-        }
+        Value::Object(map) => map.len() + map.values().map(count_keys).sum::<usize>(),
         Value::Array(arr) => arr.iter().map(count_keys).sum(),
         _ => 0,
     }
@@ -131,9 +125,11 @@ fn deep_format_value(val: &Value, depth: usize, max_depth: usize) -> Value {
             }
             Value::Object(result)
         }
-        Value::Array(arr) => {
-            Value::Array(arr.iter().map(|v| deep_format_value(v, depth, max_depth)).collect())
-        }
+        Value::Array(arr) => Value::Array(
+            arr.iter()
+                .map(|v| deep_format_value(v, depth, max_depth))
+                .collect(),
+        ),
         Value::String(s) => {
             // Try to parse as JSON
             if let Ok(nested) = serde_json::from_str::<Value>(s) {
@@ -161,11 +157,14 @@ fn format_json_with_expanded_strings(val: &Value, indent: usize, current_indent:
                 format!("{}{{}}", indent_str)
             } else {
                 let mut result = format!("{}{{\n", indent_str);
-                let items: Vec<String> = map.iter().map(|(k, v)| {
-                    let key_str = format!("{}\"{}\":", " ".repeat(next_indent), k);
-                    let val_str = format_value_with_expansion(v, indent, next_indent);
-                    format!("{} {}", key_str, val_str)
-                }).collect();
+                let items: Vec<String> = map
+                    .iter()
+                    .map(|(k, v)| {
+                        let key_str = format!("{}\"{}\":", " ".repeat(next_indent), k);
+                        let val_str = format_value_with_expansion(v, indent, next_indent);
+                        format!("{} {}", key_str, val_str)
+                    })
+                    .collect();
                 result.push_str(&items.join(",\n"));
                 result.push_str(&format!("\n{}}}", indent_str));
                 result
@@ -176,9 +175,10 @@ fn format_json_with_expanded_strings(val: &Value, indent: usize, current_indent:
                 format!("{}[]", indent_str)
             } else {
                 let mut result = format!("{}[\n", indent_str);
-                let items: Vec<String> = arr.iter().map(|v| {
-                    format_json_with_expanded_strings(v, indent, next_indent)
-                }).collect();
+                let items: Vec<String> = arr
+                    .iter()
+                    .map(|v| format_json_with_expanded_strings(v, indent, next_indent))
+                    .collect();
                 result.push_str(&items.join(",\n"));
                 result.push_str(&format!("\n{}]", indent_str));
                 result
@@ -188,7 +188,8 @@ fn format_json_with_expanded_strings(val: &Value, indent: usize, current_indent:
             // Check if string contains valid JSON
             if let Ok(nested) = serde_json::from_str::<Value>(s) {
                 // Visually expand: quote, formatted JSON, quote on separate lines
-                let nested_formatted = format_json_with_expanded_strings(&nested, indent, next_indent);
+                let nested_formatted =
+                    format_json_with_expanded_strings(&nested, indent, next_indent);
                 format!("\"\n{}\n{}\"", nested_formatted, indent_str)
             } else {
                 // Regular string
@@ -210,11 +211,14 @@ fn format_value_with_expansion(val: &Value, indent: usize, current_indent: usize
             } else {
                 let next_indent = current_indent + indent;
                 let mut result = "{\n".to_string();
-                let items: Vec<String> = map.iter().map(|(k, v)| {
-                    let key_str = format!("{}\"{}\":", " ".repeat(next_indent), k);
-                    let val_str = format_value_with_expansion(v, indent, next_indent);
-                    format!("{} {}", key_str, val_str)
-                }).collect();
+                let items: Vec<String> = map
+                    .iter()
+                    .map(|(k, v)| {
+                        let key_str = format!("{}\"{}\":", " ".repeat(next_indent), k);
+                        let val_str = format_value_with_expansion(v, indent, next_indent);
+                        format!("{} {}", key_str, val_str)
+                    })
+                    .collect();
                 result.push_str(&items.join(",\n"));
                 result.push_str(&format!("\n{}}}", " ".repeat(current_indent)));
                 result
@@ -226,9 +230,10 @@ fn format_value_with_expansion(val: &Value, indent: usize, current_indent: usize
             } else {
                 let next_indent = current_indent + indent;
                 let mut result = "[\n".to_string();
-                let items: Vec<String> = arr.iter().map(|v| {
-                    format_json_with_expanded_strings(v, indent, next_indent)
-                }).collect();
+                let items: Vec<String> = arr
+                    .iter()
+                    .map(|v| format_json_with_expanded_strings(v, indent, next_indent))
+                    .collect();
                 result.push_str(&items.join(",\n"));
                 result.push_str(&format!("\n{}]", " ".repeat(current_indent)));
                 result
@@ -237,7 +242,8 @@ fn format_value_with_expansion(val: &Value, indent: usize, current_indent: usize
         Value::String(s) => {
             if let Ok(nested) = serde_json::from_str::<Value>(s) {
                 let next_indent = current_indent + indent;
-                let nested_formatted = format_json_with_expanded_strings(&nested, indent, next_indent);
+                let nested_formatted =
+                    format_json_with_expanded_strings(&nested, indent, next_indent);
                 format!("\"\n{}\n{}\"", nested_formatted, " ".repeat(current_indent))
             } else {
                 format!("\"{}\"", escape_string(s))
@@ -359,7 +365,10 @@ fn python_dict_to_json(input: &str) -> Result<String, String> {
             _ => {
                 // Replace Python keywords (using char-based matching for Unicode safety)
                 if i + 4 <= len
-                    && chars[i] == 'T' && chars[i+1] == 'r' && chars[i+2] == 'u' && chars[i+3] == 'e'
+                    && chars[i] == 'T'
+                    && chars[i + 1] == 'r'
+                    && chars[i + 2] == 'u'
+                    && chars[i + 3] == 'e'
                     && !chars.get(i + 4).is_some_and(|c| c.is_alphanumeric())
                 {
                     result.push_str("true");
@@ -367,7 +376,11 @@ fn python_dict_to_json(input: &str) -> Result<String, String> {
                     continue;
                 }
                 if i + 5 <= len
-                    && chars[i] == 'F' && chars[i+1] == 'a' && chars[i+2] == 'l' && chars[i+3] == 's' && chars[i+4] == 'e'
+                    && chars[i] == 'F'
+                    && chars[i + 1] == 'a'
+                    && chars[i + 2] == 'l'
+                    && chars[i + 3] == 's'
+                    && chars[i + 4] == 'e'
                     && !chars.get(i + 5).is_some_and(|c| c.is_alphanumeric())
                 {
                     result.push_str("false");
@@ -375,7 +388,10 @@ fn python_dict_to_json(input: &str) -> Result<String, String> {
                     continue;
                 }
                 if i + 4 <= len
-                    && chars[i] == 'N' && chars[i+1] == 'o' && chars[i+2] == 'n' && chars[i+3] == 'e'
+                    && chars[i] == 'N'
+                    && chars[i + 1] == 'o'
+                    && chars[i + 2] == 'n'
+                    && chars[i + 3] == 'e'
                     && !chars.get(i + 4).is_some_and(|c| c.is_alphanumeric())
                 {
                     result.push_str("null");
@@ -782,7 +798,10 @@ mod tests {
     #[test]
     fn test_sort_value_primitive_unchanged() {
         assert_eq!(sort_value(&serde_json::json!(42)), serde_json::json!(42));
-        assert_eq!(sort_value(&serde_json::json!("hi")), serde_json::json!("hi"));
+        assert_eq!(
+            sort_value(&serde_json::json!("hi")),
+            serde_json::json!("hi")
+        );
     }
 
     // ── python_dict_to_json ───────────────────────────────────
@@ -953,11 +972,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_handler_format_valid_json() {
-        let (status, json) = post_json(
-            "/format",
-            serde_json::json!({"input": r#"{"a":1,"b":2}"#}),
-        )
-        .await;
+        let (status, json) =
+            post_json("/format", serde_json::json!({"input": r#"{"a":1,"b":2}"#})).await;
         assert_eq!(status, StatusCode::OK);
         assert!(json["valid"].as_bool().unwrap());
         assert!(json["result"].as_str().unwrap().contains('\n'));
@@ -1000,11 +1016,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_handler_format_invalid_json() {
-        let (status, json) = post_json(
-            "/format",
-            serde_json::json!({"input": "{invalid json}"}),
-        )
-        .await;
+        let (status, json) =
+            post_json("/format", serde_json::json!({"input": "{invalid json}"})).await;
         assert_eq!(status, StatusCode::OK);
         assert!(!json["valid"].as_bool().unwrap());
         assert!(json["error"].is_string());
@@ -1115,11 +1128,15 @@ mod tests {
         .await;
 
         assert!(json["valid"].as_bool().unwrap());
-        let result: serde_json::Value = serde_json::from_str(json["result"].as_str().unwrap()).unwrap();
+        let result: serde_json::Value =
+            serde_json::from_str(json["result"].as_str().unwrap()).unwrap();
 
         // content 应该被解析为 JSON 对象，而不是字符串
         let content = &result["choices"][0]["message"]["content"];
-        assert!(content.is_object(), "content should be an object, not a string");
+        assert!(
+            content.is_object(),
+            "content should be an object, not a string"
+        );
         assert_eq!(content["classification"]["效力位阶一级"], "6-地方法规");
     }
 
@@ -1138,11 +1155,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handler_validate_invalid() {
-        let (_, json) = post_json(
-            "/validate",
-            serde_json::json!({"input": r#"{"key": }"#}),
-        )
-        .await;
+        let (_, json) = post_json("/validate", serde_json::json!({"input": r#"{"key": }"#})).await;
         assert!(!json["valid"].as_bool().unwrap());
         assert!(json["error"].is_string());
         assert!(json["error_position"].is_number());
@@ -1150,11 +1163,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handler_validate_empty() {
-        let (_, json) = post_json(
-            "/validate",
-            serde_json::json!({"input": ""}),
-        )
-        .await;
+        let (_, json) = post_json("/validate", serde_json::json!({"input": ""})).await;
         assert!(!json["valid"].as_bool().unwrap());
     }
 
@@ -1252,22 +1261,14 @@ mod tests {
   "name": "test",
   "value": 123
 }"#;
-        let (_, json) = post_json(
-            "/minify",
-            serde_json::json!({"input": input}),
-        )
-        .await;
+        let (_, json) = post_json("/minify", serde_json::json!({"input": input})).await;
         assert_eq!(json["result"], r#"{"name":"test","value":123}"#);
         assert!(json["minified_size"].as_u64().unwrap() < json["original_size"].as_u64().unwrap());
     }
 
     #[tokio::test]
     async fn test_handler_minify_already_compact() {
-        let (_, json) = post_json(
-            "/minify",
-            serde_json::json!({"input": r#"{"a":1}"#}),
-        )
-        .await;
+        let (_, json) = post_json("/minify", serde_json::json!({"input": r#"{"a":1}"#})).await;
         assert_eq!(json["result"], r#"{"a":1}"#);
     }
 
@@ -1281,15 +1282,21 @@ mod tests {
     # Another comment
     "value": 123
 }"#;
-        let (status, json) = post_json(
-            "/format",
-            serde_json::json!({"input": input}),
-        )
-        .await;
+        let (status, json) = post_json("/format", serde_json::json!({"input": input})).await;
         assert_eq!(status, StatusCode::OK);
         assert!(json["valid"].as_bool().unwrap());
-        assert!(json["result"].as_str().unwrap().contains("\"name\": \"test\""));
-        assert!(!json["result"].as_str().unwrap().contains("# This is a comment"));
+        assert!(
+            json["result"]
+                .as_str()
+                .unwrap()
+                .contains("\"name\": \"test\"")
+        );
+        assert!(
+            !json["result"]
+                .as_str()
+                .unwrap()
+                .contains("# This is a comment")
+        );
     }
 
     #[tokio::test]
@@ -1298,11 +1305,7 @@ mod tests {
     # Config file
     "debug": true
 }"#;
-        let (_, json) = post_json(
-            "/validate",
-            serde_json::json!({"input": input}),
-        )
-        .await;
+        let (_, json) = post_json("/validate", serde_json::json!({"input": input})).await;
         assert!(json["valid"].as_bool().unwrap());
     }
 
@@ -1313,11 +1316,7 @@ mod tests {
     "a": 1,
     "b": 2
 }"#;
-        let (_, json) = post_json(
-            "/minify",
-            serde_json::json!({"input": input}),
-        )
-        .await;
+        let (_, json) = post_json("/minify", serde_json::json!({"input": input})).await;
         assert_eq!(json["result"], r#"{"a":1,"b":2}"#);
     }
 
@@ -1350,7 +1349,12 @@ mod tests {
         let result = deep_format_value(&input, 0, 1);
         // level1 should be parsed, but level2 should remain as string
         assert!(result["level1"]["level2"].is_string());
-        assert!(result["level1"]["level2"].as_str().unwrap().contains("level3"));
+        assert!(
+            result["level1"]["level2"]
+                .as_str()
+                .unwrap()
+                .contains("level3")
+        );
     }
 
     #[test]
@@ -1401,7 +1405,8 @@ mod tests {
     fn test_deep_format_json_with_newlines() {
         // 模拟 OpenAI API 返回的 content 字段，包含带换行符的 JSON 字符串
         // 当 JSON 被解析时，字符串中的 \n 会变成真正的换行符
-        let content_value = "{\n  \"classification\": {\n    \"效力位阶一级\": \"6-地方法规\"\n  }\n}";
+        let content_value =
+            "{\n  \"classification\": {\n    \"效力位阶一级\": \"6-地方法规\"\n  }\n}";
         let input = serde_json::json!({
             "choices": [{
                 "message": {
@@ -1412,6 +1417,9 @@ mod tests {
         let result = deep_format_value(&input, 0, 5);
         // content 应该被解析为 JSON 对象
         assert!(result["choices"][0]["message"]["content"].is_object());
-        assert_eq!(result["choices"][0]["message"]["content"]["classification"]["效力位阶一级"], "6-地方法规");
+        assert_eq!(
+            result["choices"][0]["message"]["content"]["classification"]["效力位阶一级"],
+            "6-地方法规"
+        );
     }
 }

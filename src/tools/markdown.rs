@@ -1,5 +1,5 @@
 use axum::{Json, Router, routing::post};
-use comrak::{markdown_to_html, Options};
+use comrak::{Options, markdown_to_html};
 use serde::{Deserialize, Serialize};
 
 // ── Request / Response types ───────────────────────────────────────
@@ -116,8 +116,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_render_strikethrough() {
-        let (_, json) =
-            post_render(serde_json::json!({"markdown": "~~deleted~~"})).await;
+        let (_, json) = post_render(serde_json::json!({"markdown": "~~deleted~~"})).await;
         let html = json["html"].as_str().unwrap();
         assert!(html.contains("<del>deleted</del>"));
     }
@@ -155,8 +154,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_render_inline_code() {
-        let (_, json) =
-            post_render(serde_json::json!({"markdown": "use `println!` macro"})).await;
+        let (_, json) = post_render(serde_json::json!({"markdown": "use `println!` macro"})).await;
         let html = json["html"].as_str().unwrap();
         assert!(html.contains("<code>println!</code>"));
     }
@@ -243,11 +241,7 @@ mod tests {
         let md = "Text[^1]\n\n[^1]: Footnote content";
         let (_, json) = post_render(serde_json::json!({"markdown": md})).await;
         let html = json["html"].as_str().unwrap();
-        assert!(
-            html.contains("footnote"),
-            "expected footnote in: {}",
-            html
-        );
+        assert!(html.contains("footnote"), "expected footnote in: {}", html);
     }
 
     // ── Superscript ───────────────────────────────────────────
@@ -288,8 +282,7 @@ mod tests {
     #[tokio::test]
     async fn test_render_unsafe_html_enabled() {
         let md = "<div class=\"custom\">content</div>";
-        let (_, json) =
-            post_render(serde_json::json!({"markdown": md, "unsafe_html": true})).await;
+        let (_, json) = post_render(serde_json::json!({"markdown": md, "unsafe_html": true})).await;
         let html = json["html"].as_str().unwrap();
         assert!(
             html.contains("<div class=\"custom\">"),

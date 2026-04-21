@@ -300,7 +300,11 @@ async fn text_stats(Json(req): Json<StatsRequest>) -> Json<StatsResponse> {
         chars: input.chars().count(),
         chars_no_space: input.chars().filter(|c| !c.is_whitespace()).count(),
         words: input.split_whitespace().count(),
-        lines: if input.is_empty() { 0 } else { input.lines().count() },
+        lines: if input.is_empty() {
+            0
+        } else {
+            input.lines().count()
+        },
         bytes: input.len(),
         success: true,
     })
@@ -345,7 +349,10 @@ async fn uuid_generate(Json(req): Json<UuidRequest>) -> Json<UuidResponse> {
         })
         .collect();
 
-    Json(UuidResponse { uuids, success: true })
+    Json(UuidResponse {
+        uuids,
+        success: true,
+    })
 }
 
 // ============================================================================

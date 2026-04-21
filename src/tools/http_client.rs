@@ -1,6 +1,6 @@
 use axum::{Json, Router, routing::post};
-use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use reqwest::Url;
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
@@ -290,7 +290,11 @@ fn base64_encode(input: &str) -> String {
 }
 
 /// Build request body based on body type
-fn build_body(body_type: &BodyType, body: &Option<String>, form_data: &[KeyValue]) -> Option<String> {
+fn build_body(
+    body_type: &BodyType,
+    body: &Option<String>,
+    form_data: &[KeyValue],
+) -> Option<String> {
     match body_type {
         BodyType::None => None,
         BodyType::Json | BodyType::Text | BodyType::Raw => body.clone(),
@@ -406,7 +410,11 @@ async fn send_request(Json(req): Json<SendRequest>) -> Json<HttpResponse> {
                         .filter(|s| !s.is_empty())
                         .map(|s| s.to_string())
                         .collect();
-                    pairs.push(format!("{}={}", urlencoding::encode(name), urlencoding::encode(value)));
+                    pairs.push(format!(
+                        "{}={}",
+                        urlencoding::encode(name),
+                        urlencoding::encode(value)
+                    ));
                     parsed.set_query(Some(&pairs.join("&")));
                 }
             }
@@ -476,7 +484,9 @@ async fn send_request(Json(req): Json<SendRequest>) -> Json<HttpResponse> {
         }
 
         // Build request
-        let mut request_builder = client.request(http_req.method.to_reqwest(), &final_url).headers(headers.clone());
+        let mut request_builder = client
+            .request(http_req.method.to_reqwest(), &final_url)
+            .headers(headers.clone());
 
         if let Some(ref b) = body {
             request_builder = request_builder.body(b.clone());
@@ -486,7 +496,11 @@ async fn send_request(Json(req): Json<SendRequest>) -> Json<HttpResponse> {
         match request_builder.send().await {
             Ok(response) => {
                 let status = response.status().as_u16();
-                let status_text = response.status().canonical_reason().unwrap_or("").to_string();
+                let status_text = response
+                    .status()
+                    .canonical_reason()
+                    .unwrap_or("")
+                    .to_string();
 
                 // Extract response headers
                 let resp_headers: Vec<(String, String)> = response
@@ -585,7 +599,10 @@ mod tests {
             value: "123".to_string(),
             enabled: true,
         }];
-        assert_eq!(replace_path_params(url, &params), "https://api.example.com/users/123");
+        assert_eq!(
+            replace_path_params(url, &params),
+            "https://api.example.com/users/123"
+        );
     }
 
     #[test]
@@ -603,7 +620,10 @@ mod tests {
                 enabled: true,
             },
         ];
-        assert_eq!(replace_path_params(url, &params), "https://api.example.com/users/456");
+        assert_eq!(
+            replace_path_params(url, &params),
+            "https://api.example.com/users/456"
+        );
     }
 
     #[test]
@@ -614,7 +634,10 @@ mod tests {
             value: "123".to_string(),
             enabled: false,
         }];
-        assert_eq!(replace_path_params(url, &params), "https://api.example.com/users/{{id}}");
+        assert_eq!(
+            replace_path_params(url, &params),
+            "https://api.example.com/users/{{id}}"
+        );
     }
 
     #[test]

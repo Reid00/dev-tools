@@ -1,8 +1,8 @@
 use axum::{Json, Router, routing::post};
-use serde::{Deserialize, Serialize};
-use sha2::{Sha256, Sha512, Digest};
-use sha1::Sha1;
 use md5::Md5;
+use serde::{Deserialize, Serialize};
+use sha1::Sha1;
+use sha2::{Digest, Sha256, Sha512};
 
 #[derive(Deserialize)]
 pub struct HashRequest {
@@ -101,8 +101,8 @@ pub struct AesResponse {
 }
 
 async fn aes_encrypt(Json(req): Json<AesRequest>) -> Json<AesResponse> {
-    use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
     use aes_gcm::Nonce;
+    use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
     use rand::Rng;
 
     let key_bytes = if req.key.len() < 32 {
@@ -122,14 +122,17 @@ async fn aes_encrypt(Json(req): Json<AesRequest>) -> Json<AesResponse> {
 
     match cipher.encrypt(nonce, req.text.as_bytes()) {
         Ok(encrypted) => {
-            let combined: Vec<u8> = nonce_bytes.into_iter().chain(encrypted.into_iter()).collect();
+            let combined: Vec<u8> = nonce_bytes
+                .into_iter()
+                .chain(encrypted.into_iter())
+                .collect();
             use base64::{Engine as _, engine::general_purpose::STANDARD};
             Json(AesResponse {
                 result: STANDARD.encode(&combined),
                 success: true,
                 error: None,
             })
-        },
+        }
         Err(e) => Json(AesResponse {
             result: String::new(),
             success: false,
@@ -139,17 +142,19 @@ async fn aes_encrypt(Json(req): Json<AesRequest>) -> Json<AesResponse> {
 }
 
 async fn aes_decrypt(Json(req): Json<AesRequest>) -> Json<AesResponse> {
-    use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
     use aes_gcm::Nonce;
+    use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
     use base64::{Engine as _, engine::general_purpose::STANDARD};
 
     let combined = match STANDARD.decode(&req.text) {
         Ok(c) => c,
-        Err(_) => return Json(AesResponse {
-            result: String::new(),
-            success: false,
-            error: Some("Base64 解码失败".to_string()),
-        }),
+        Err(_) => {
+            return Json(AesResponse {
+                result: String::new(),
+                success: false,
+                error: Some("Base64 解码失败".to_string()),
+            });
+        }
     };
 
     if combined.len() < 12 {
@@ -177,7 +182,11 @@ async fn aes_decrypt(Json(req): Json<AesRequest>) -> Json<AesResponse> {
 
     match cipher.decrypt(nonce, ciphertext) {
         Ok(decrypted) => match String::from_utf8(decrypted) {
-            Ok(s) => Json(AesResponse { result: s, success: true, error: None }),
+            Ok(s) => Json(AesResponse {
+                result: s,
+                success: true,
+                error: None,
+            }),
             Err(_) => Json(AesResponse {
                 result: String::new(),
                 success: false,
@@ -235,23 +244,38 @@ mod tests {
     #[tokio::test]
     async fn test_sha256() {
         let (_, json) = post_json("/sha256", serde_json::json!({"input": "hello"})).await;
-        assert_eq!(json["hash"], "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824");
+        assert_eq!(
+            json["hash"],
+            "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+        );
     }
 
     #[tokio::test]
     async fn test_hmac() {
-        let (_, json) = post_json("/hmac", serde_json::json!({"key": "secret", "message": "hello"})).await;
+        let (_, json) = post_json(
+            "/hmac",
+            serde_json::json!({"key": "secret", "message": "hello"}),
+        )
+        .await;
         assert!(json["success"].as_bool().unwrap());
         assert!(!json["hmac"].as_str().unwrap().is_empty());
     }
 
     #[tokio::test]
     async fn test_aes_roundtrip() {
-        let (_, enc) = post_json("/aes/encrypt", serde_json::json!({"text": "hello", "key": "mysecretkey"})).await;
+        let (_, enc) = post_json(
+            "/aes/encrypt",
+            serde_json::json!({"text": "hello", "key": "mysecretkey"}),
+        )
+        .await;
         assert!(enc["success"].as_bool().unwrap());
         let encrypted = enc["result"].as_str().unwrap();
 
-        let (_, dec) = post_json("/aes/decrypt", serde_json::json!({"text": encrypted, "key": "mysecretkey"})).await;
+        let (_, dec) = post_json(
+            "/aes/decrypt",
+            serde_json::json!({"text": encrypted, "key": "mysecretkey"}),
+        )
+        .await;
         assert!(dec["success"].as_bool().unwrap());
         assert_eq!(dec["result"], "hello");
     }

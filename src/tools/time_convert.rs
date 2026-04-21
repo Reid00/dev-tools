@@ -227,16 +227,16 @@ async fn timestamp_to_datetime(
     Json(req): Json<TimestampToDatetime>,
 ) -> Result<Json<DatetimeResult>, Json<serde_json::Value>> {
     let (sec, ms) = normalize_timestamp(req.timestamp);
-    let dt_utc = DateTime::from_timestamp(sec, 0).ok_or_else(|| {
-        Json(serde_json::json!({"error": "无效的时间戳"}))
-    })?;
+    let dt_utc = DateTime::from_timestamp(sec, 0)
+        .ok_or_else(|| Json(serde_json::json!({"error": "无效的时间戳"})))?;
     let dt_local = dt_utc.with_timezone(&Local);
 
-    let custom_tz = req
-        .timezone
-        .as_deref()
-        .and_then(parse_tz)
-        .map(|tz| dt_utc.with_timezone(&tz).format("%Y-%m-%d %H:%M:%S").to_string());
+    let custom_tz = req.timezone.as_deref().and_then(parse_tz).map(|tz| {
+        dt_utc
+            .with_timezone(&tz)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string()
+    });
 
     Ok(Json(DatetimeResult {
         local: dt_local.format("%Y-%m-%d %H:%M:%S").to_string(),
@@ -264,7 +264,9 @@ async fn datetime_to_timestamp(
                 .ok_or_else(|| Json(serde_json::json!({"error": "无法确定唯一的时间"})))?
                 .with_timezone(&Utc)
         } else {
-            return Err(Json(serde_json::json!({"error": format!("未知时区: {}", tz_str)})));
+            return Err(Json(
+                serde_json::json!({"error": format!("未知时区: {}", tz_str)}),
+            ));
         }
     } else {
         // Assume local timezone
@@ -290,9 +292,8 @@ async fn datetime_to_timestamp(
 async fn timezone_convert(
     Json(req): Json<TimezoneConvert>,
 ) -> Result<Json<TimezoneResult>, Json<serde_json::Value>> {
-    let naive = parse_naive_datetime(&req.datetime).ok_or_else(|| {
-        Json(serde_json::json!({"error": "无法解析日期时间"}))
-    })?;
+    let naive = parse_naive_datetime(&req.datetime)
+        .ok_or_else(|| Json(serde_json::json!({"error": "无法解析日期时间"})))?;
     let from_tz = parse_tz(&req.from_tz).ok_or_else(|| {
         Json(serde_json::json!({"error": format!("未知来源时区: {}", req.from_tz)}))
     })?;
@@ -318,9 +319,8 @@ async fn timezone_convert(
 async fn format_convert(
     Json(req): Json<FormatConvert>,
 ) -> Result<Json<FormatResult>, Json<serde_json::Value>> {
-    let naive = parse_naive_datetime(&req.datetime).ok_or_else(|| {
-        Json(serde_json::json!({"error": "无法解析日期时间"}))
-    })?;
+    let naive = parse_naive_datetime(&req.datetime)
+        .ok_or_else(|| Json(serde_json::json!({"error": "无法解析日期时间"})))?;
 
     let result = match req.target_format.as_str() {
         "YYYY-MM-DD HH:MM:SS" | "standard" => naive.format("%Y-%m-%d %H:%M:%S").to_string(),
@@ -329,12 +329,8 @@ async fn format_convert(
         "YYYYMMDDHHMMSS" | "compact" => naive.format("%Y%m%d%H%M%S").to_string(),
         "YYYY-MM-DD" | "date" => naive.format("%Y-%m-%d").to_string(),
         "HH:MM:SS" | "time" => naive.format("%H:%M:%S").to_string(),
-        "chinese" => {
-            naive.format("%Y年%m月%d日 %H时%M分%S秒").to_string()
-        }
-        "iso8601" => {
-            naive.format("%Y-%m-%dT%H:%M:%S").to_string() + "+00:00"
-        }
+        "chinese" => naive.format("%Y年%m月%d日 %H时%M分%S秒").to_string(),
+        "iso8601" => naive.format("%Y-%m-%dT%H:%M:%S").to_string() + "+00:00",
         "rfc2822" => {
             let dt_utc = Utc.from_utc_datetime(&naive);
             dt_utc.to_rfc2822()
@@ -367,15 +363,15 @@ async fn batch_timestamp(
     let mut results = Vec::with_capacity(req.timestamps.len());
     for ts in &req.timestamps {
         let (sec, ms) = normalize_timestamp(*ts);
-        let dt_utc = DateTime::from_timestamp(sec, 0).ok_or_else(|| {
-            Json(serde_json::json!({"error": format!("无效的时间戳: {}", ts)}))
-        })?;
+        let dt_utc = DateTime::from_timestamp(sec, 0)
+            .ok_or_else(|| Json(serde_json::json!({"error": format!("无效的时间戳: {}", ts)})))?;
         let dt_local = dt_utc.with_timezone(&Local);
-        let custom_tz = req
-            .timezone
-            .as_deref()
-            .and_then(parse_tz)
-            .map(|tz| dt_utc.with_timezone(&tz).format("%Y-%m-%d %H:%M:%S").to_string());
+        let custom_tz = req.timezone.as_deref().and_then(parse_tz).map(|tz| {
+            dt_utc
+                .with_timezone(&tz)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        });
 
         results.push(DatetimeResult {
             local: dt_local.format("%Y-%m-%d %H:%M:%S").to_string(),
@@ -896,11 +892,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_handler_batch_timestamp_empty() {
-        let (status, json) = post_json(
-            "/batch-timestamp",
-            serde_json::json!({"timestamps": []}),
-        )
-        .await;
+        let (status, json) =
+            post_json("/batch-timestamp", serde_json::json!({"timestamps": []})).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(json["results"].as_array().unwrap().len(), 0);
     }

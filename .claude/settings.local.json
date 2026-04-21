@@ -74,7 +74,18 @@
       "mcp__plugin_context7_context7__query-docs",
       "Bash(wmic process:*)",
       "Read(//tmp/**)",
-      "Skill(claude-api)"
+      "Skill(claude-api)",
+      "WebFetch(domain:www.yataiyitong.com)",
+      "WebFetch(domain:dyshunli.com)",
+      "WebFetch(domain:stgrv.com)",
+      "WebFetch(domain:www.cloudtranslation.com)",
+      "WebFetch(domain:acl4ssr-sub.github.io)",
+      "Bash(cargo fmt *)",
+      "Bash(python -c \"import sys;d=sys.stdin.read\\(\\);print\\(d[:1200]\\)\")",
+      "Bash(python -c \"import sys,base64,re;d=sys.stdin.read\\(\\).strip\\(\\);import textwrap;pad='='*\\(-len\\(d\\)%4\\);raw=base64.b64decode\\(d+pad\\).decode\\('utf-8','ignore'\\);print\\(raw[:2000]\\);print\\('\\\\n---\\\\nLINES',len\\(raw.splitlines\\(\\)\\)\\);print\\('PREFIXES',sorted\\(set\\([ln.split\\('://',1\\)[0] for ln in raw.splitlines\\(\\) if '://' in ln]\\)\\)[:20]\\)\")",
+      "Bash(python *)",
+      "WebFetch(domain:sing-box.sagernet.org)",
+      "WebFetch(domain:wiki.metacubex.one)"
     ]
   }
 }

@@ -40,9 +40,10 @@ async fn translate(
     let to_lang = req.to.as_str();
 
     // Detect if text contains Chinese characters
-    let has_chinese = req.text.chars().any(|c| {
-        matches!(c, '\u{4e00}'..='\u{9fff}' | '\u{3400}'..='\u{4dbf}')
-    });
+    let has_chinese = req
+        .text
+        .chars()
+        .any(|c| matches!(c, '\u{4e00}'..='\u{9fff}' | '\u{3400}'..='\u{4dbf}'));
 
     // Map short codes to MyMemory language pairs
     let lang_pair = match (from_lang, to_lang) {
@@ -212,7 +213,10 @@ mod tests {
 
     #[test]
     fn test_lang_pair_fallback_chinese_input() {
-        assert_eq!(resolve_lang_pair("unknown", "unknown", "你好世界"), "zh-CN|en");
+        assert_eq!(
+            resolve_lang_pair("unknown", "unknown", "你好世界"),
+            "zh-CN|en"
+        );
     }
 
     #[test]
