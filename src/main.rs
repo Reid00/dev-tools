@@ -41,3 +41,13 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
+
+#[cfg(test)]
+mod tests {
+    use super::INDEX_HTML;
+
+    #[test]
+    fn test_index_html_displays_version_0_4_0() {
+        assert!(INDEX_HTML.contains("Dev Tools v0.4.0"));
+    }
+}

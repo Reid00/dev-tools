@@ -85,7 +85,25 @@
       "Bash(python -c \"import sys,base64,re;d=sys.stdin.read\\(\\).strip\\(\\);import textwrap;pad='='*\\(-len\\(d\\)%4\\);raw=base64.b64decode\\(d+pad\\).decode\\('utf-8','ignore'\\);print\\(raw[:2000]\\);print\\('\\\\n---\\\\nLINES',len\\(raw.splitlines\\(\\)\\)\\);print\\('PREFIXES',sorted\\(set\\([ln.split\\('://',1\\)[0] for ln in raw.splitlines\\(\\) if '://' in ln]\\)\\)[:20]\\)\")",
       "Bash(python *)",
       "WebFetch(domain:sing-box.sagernet.org)",
-      "WebFetch(domain:wiki.metacubex.one)"
+      "WebFetch(domain:wiki.metacubex.one)",
+      "Bash(echo \"BUILD_EXIT: $?\")",
+      "Bash(./target/debug/dev-tools.exe)",
+      "Bash(tasklist /FI \"PID eq 31396\")",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "Bash(gh repo *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git check-ignore *)",
+      "Bash(git worktree *)",
+      "Read(//c/Personal/Rust/dev-tools/.claude/worktrees/agent-aa5c995d/src/tools/**)",
+      "Bash(git *)",
+      "Read(//c/Personal/Rust/dev-tools/.claude/worktrees/agent-a60eedaa/src/tools/**)",
+      "Read(//c/Personal/Rust/dev-tools/.claude/worktrees/agent-a60eedaa/src/tools/sub_convert/**)",
+      "Skill(code-review:code-review)",
+      "WebFetch(domain:hiddify.org)",
+      "WebFetch(domain:hiddifynext.app)",
+      "WebFetch(domain:sourceforge.net)",
+      "Read(//c/Personal/Rust/dev-tools/.claude/worktrees/agent-a9c14e3d/src/tools/**)"
     ]
   }
 }
