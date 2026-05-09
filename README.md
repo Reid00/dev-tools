@@ -9,7 +9,7 @@
 | 🕐 时间转换 | 时间戳与日期时间互转、时区转换、格式转换 |
 | 📄 JSON 格式化 | JSON 格式化、压缩、校验、键排序 |
 | 🐍 Dict 转 JSON | Python Dict 字符串转 JSON (支持 True/False/None、单引号、元组等) |
-| 🌐 翻译工具 | 中英文互译 (基于 MyMemory API) |
+| 🌐 翻译工具 | 中英文互译 (基于阿里云机器翻译) |
 | ✍️ Markdown 渲染 | Markdown 实时预览、服务端渲染、工具栏快捷操作 |
 | 🔌 HTTP 请求 | HTTP 请求构建器 (类似轻量级 Postman) |
 
@@ -27,6 +27,10 @@
 git clone https://github.com/yourname/dev-tools.git
 cd dev-tools
 
+# 配置阿里云机器翻译凭证
+export ALIBABA_CLOUD_ACCESS_KEY_ID='your-access-key-id'
+export ALIBABA_CLOUD_ACCESS_KEY_SECRET='your-access-key-secret'
+
 # 运行开发服务器
 cargo run
 
@@ -42,6 +46,10 @@ cargo build --release
 ### 方式一：Docker Compose (推荐)
 
 ```bash
+# 配置阿里云机器翻译凭证
+export ALIBABA_CLOUD_ACCESS_KEY_ID='your-access-key-id'
+export ALIBABA_CLOUD_ACCESS_KEY_SECRET='your-access-key-secret'
+
 # 构建并启动
 docker compose up -d
 
@@ -64,6 +72,8 @@ docker run -d \
   -p 3000:3000 \
   -e RUST_LOG=info \
   -e TZ=Asia/Shanghai \
+  -e ALIBABA_CLOUD_ACCESS_KEY_ID='your-access-key-id' \
+  -e ALIBABA_CLOUD_ACCESS_KEY_SECRET='your-access-key-secret' \
   --restart unless-stopped \
   dev-tools:latest
 ```
@@ -78,6 +88,8 @@ docker pull yourname/dev-tools:latest
 docker run -d \
   --name dev-tools \
   -p 3000:3000 \
+  -e ALIBABA_CLOUD_ACCESS_KEY_ID='your-access-key-id' \
+  -e ALIBABA_CLOUD_ACCESS_KEY_SECRET='your-access-key-secret' \
   --restart unless-stopped \
   yourname/dev-tools:latest
 ```

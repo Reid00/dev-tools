@@ -1761,6 +1761,39 @@
         }
     }
 
+    function formatTranslateErrorMessage(message) {
+        const text = typeof message === 'string' ? message.trim() : '';
+
+        if (!text) return '翻译失败，请稍后重试';
+        if (text.includes('翻译请求失败')) return '翻译服务暂时不可用（网络请求失败）';
+        if (text.includes('解析翻译结果失败')) return '翻译服务返回异常（响应解析失败）';
+        if (text.includes('翻译服务返回错误')) return '翻译服务暂时不可用（上游服务返回错误）';
+
+        return `翻译失败（${text}）`;
+    }
+
+    function formatTranslateErrorMessage(errorOrMessage) {
+        const errorType = errorOrMessage && typeof errorOrMessage === 'object'
+            ? errorOrMessage.translateErrorType
+            : '';
+        const text = typeof errorOrMessage === 'string'
+            ? errorOrMessage.trim()
+            : typeof errorOrMessage?.message === 'string'
+                ? errorOrMessage.message.trim()
+                : '';
+
+        if (errorType === 'network') return '翻译服务暂时不可用（网络请求失败）';
+        if (errorType === 'parse') return '翻译服务返回异常（响应解析失败）';
+        if (errorType === 'upstream') return '翻译服务暂时不可用（上游服务返回错误）';
+
+        if (!text) return '翻译失败，请稍后重试';
+        if (text.includes('翻译请求失败')) return '翻译服务暂时不可用（网络请求失败）';
+        if (text.includes('解析翻译结果失败')) return '翻译服务返回异常（响应解析失败）';
+        if (text.includes('翻译服务返回错误')) return '翻译服务暂时不可用（上游服务返回错误）';
+
+        return `翻译失败（${text}）`;
+    }
+
     async function doTranslate() {
         const text = document.getElementById('translate-input').value.trim();
         if (!text) return showToast('请输入要翻译的文本');
@@ -1769,9 +1802,37 @@
         const body = { text: text, to: to };
         if (from !== 'auto') body.from = from;
         try {
-            const data = await apiCall('/api/translate/translate', body);
+            let res;
+            try {
+                res = await fetch('/api/translate/translate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+            } catch (e) {
+                const error = new Error(e?.message || String(e));
+                error.translateErrorType = 'network';
+                throw error;
+            }
+
+            let data;
+            try {
+                data = await res.json();
+            } catch (e) {
+                const error = new Error(e?.message || String(e));
+                error.translateErrorType = 'parse';
+                throw error;
+            }
+
+            if (!res.ok) {
+                const error = new Error(data.error || data.message || '请求失败');
+                error.translateErrorType = 'upstream';
+                throw error;
+            }
             document.getElementById('translate-output').value = data.result;
-        } catch(e) {}
+        } catch(e) {
+            showToast(formatTranslateErrorMessage(e));
+        }
     }
 
     // ===== TOOL 5: Markdown Renderer =====
