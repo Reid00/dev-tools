@@ -536,6 +536,20 @@
                         <button onclick="copyText(document.getElementById('translate-output').value, event)" class="copy-btn absolute top-3 right-3 text-xs px-3 py-1 bg-white hover:bg-gray-100 rounded-md text-gray-600 transition-colors border border-gray-200">复制</button>
                     </div>
                 </div>
+                <div class="mt-4 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden result-card">
+                    <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                        <button onclick="toggleTranslateHistory()" class="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-indigo-600 transition-colors">
+                            <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z"/></svg>
+                            <span>最近翻译</span>
+                            <span id="translate-history-toggle-text" class="text-xs text-gray-400">收起</span>
+                        </button>
+                        <button onclick="clearTranslateHistory()" class="text-xs text-gray-500 hover:text-red-500 transition-colors">清空历史</button>
+                    </div>
+                    <div id="translate-history-panel" class="p-4">
+                        <div id="translate-history-empty" class="text-sm text-gray-400">暂无翻译历史</div>
+                        <div id="translate-history-list" class="space-y-2"></div>
+                    </div>
+                </div>
             </div>
 
             <!-- ===== TOOL 5: Markdown Renderer ===== -->
@@ -1761,17 +1775,6 @@
         }
     }
 
-    function formatTranslateErrorMessage(message) {
-        const text = typeof message === 'string' ? message.trim() : '';
-
-        if (!text) return '翻译失败，请稍后重试';
-        if (text.includes('翻译请求失败')) return '翻译服务暂时不可用（网络请求失败）';
-        if (text.includes('解析翻译结果失败')) return '翻译服务返回异常（响应解析失败）';
-        if (text.includes('翻译服务返回错误')) return '翻译服务暂时不可用（上游服务返回错误）';
-
-        return `翻译失败（${text}）`;
-    }
-
     function formatTranslateErrorMessage(errorOrMessage) {
         const errorType = errorOrMessage && typeof errorOrMessage === 'object'
             ? errorOrMessage.translateErrorType
@@ -1792,6 +1795,92 @@
         if (text.includes('翻译服务返回错误')) return '翻译服务暂时不可用（上游服务返回错误）';
 
         return `翻译失败（${text}）`;
+    }
+
+    const TRANSLATE_HISTORY_KEY = 'translate_history';
+    const TRANSLATE_HISTORY_LIMIT = 7;
+    let translateHistoryCollapsed = false;
+
+    function getTranslateHistory() {
+        const history = SafeStorage.getJSON(TRANSLATE_HISTORY_KEY, []);
+        return Array.isArray(history) ? history : [];
+    }
+
+    function renderTranslateHistory() {
+        const listEl = document.getElementById('translate-history-list');
+        const emptyEl = document.getElementById('translate-history-empty');
+        const panelEl = document.getElementById('translate-history-panel');
+        const toggleTextEl = document.getElementById('translate-history-toggle-text');
+        if (!listEl || !emptyEl || !panelEl || !toggleTextEl) return;
+
+        const history = getTranslateHistory();
+        panelEl.classList.toggle('hidden', translateHistoryCollapsed);
+        toggleTextEl.textContent = translateHistoryCollapsed ? '展开' : '收起';
+
+        if (history.length === 0) {
+            listEl.innerHTML = '';
+            emptyEl.classList.remove('hidden');
+            return;
+        }
+
+        emptyEl.classList.add('hidden');
+        listEl.innerHTML = history.map((entry) => {
+            const time = new Date(entry.timestamp).toLocaleString('zh-CN');
+            const direction = `${entry.from} → ${entry.to}`;
+            return `<button type="button" onclick="restoreTranslateHistory(${entry.id})" class="w-full text-left p-3 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                <div class="flex items-center justify-between gap-3 mb-1">
+                    <span class="text-xs font-medium text-indigo-600">${escapeHtml(direction)}</span>
+                    <span class="text-xs text-gray-400 whitespace-nowrap">${escapeHtml(time)}</span>
+                </div>
+                <div class="text-sm text-gray-700 truncate">${escapeHtml(entry.sourceText)}</div>
+                <div class="text-sm text-gray-400 truncate mt-1">${escapeHtml(entry.translatedText)}</div>
+            </button>`;
+        }).join('');
+    }
+
+    function saveTranslateHistoryEntry(entry) {
+        const history = getTranslateHistory().filter((item) => !(
+            item.sourceText === entry.sourceText &&
+            item.from === entry.from &&
+            item.to === entry.to
+        ));
+        history.unshift(entry);
+        SafeStorage.setJSON(TRANSLATE_HISTORY_KEY, history.slice(0, TRANSLATE_HISTORY_LIMIT));
+        renderTranslateHistory();
+    }
+
+    function restoreTranslateHistory(id) {
+        const entry = getTranslateHistory().find((item) => item.id === id);
+        if (!entry) return;
+        document.getElementById('translate-input').value = entry.sourceText;
+        document.getElementById('translate-output').value = entry.translatedText;
+        document.getElementById('translate-from').value = entry.from;
+        document.getElementById('translate-to').value = entry.to;
+        updateCharCount();
+        showToast('已恢复翻译历史', 'success');
+    }
+
+    function clearTranslateHistory() {
+        SafeStorage.remove(TRANSLATE_HISTORY_KEY);
+        renderTranslateHistory();
+        showToast('已清空翻译历史', 'success');
+    }
+
+    function toggleTranslateHistory(forceCollapsed) {
+        if (typeof forceCollapsed === 'boolean') {
+            translateHistoryCollapsed = forceCollapsed;
+        } else {
+            translateHistoryCollapsed = !translateHistoryCollapsed;
+        }
+        renderTranslateHistory();
+    }
+
+    function initTranslateHistory() {
+        const isMobile = typeof window.matchMedia === 'function'
+            ? window.matchMedia('(max-width: 767px)').matches
+            : false;
+        translateHistoryCollapsed = isMobile;
+        renderTranslateHistory();
     }
 
     async function doTranslate() {
@@ -1829,7 +1918,16 @@
                 error.translateErrorType = 'upstream';
                 throw error;
             }
+
             document.getElementById('translate-output').value = data.result;
+            saveTranslateHistoryEntry({
+                id: Date.now(),
+                timestamp: new Date().toISOString(),
+                sourceText: text,
+                translatedText: data.result,
+                from: data.from,
+                to: data.to,
+            });
         } catch(e) {
             showToast(formatTranslateErrorMessage(e));
         }
@@ -2401,6 +2499,7 @@ ${preview.innerHTML}
         updateJsonInputLineNums();
         initHttpClient();
         initMarkdownEditor();
+        initTranslateHistory();
     });
 
     // ===== TOOL 6: HTTP Client =====
