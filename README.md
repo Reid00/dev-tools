@@ -2,6 +2,8 @@
 
 一个基于 Rust + Axum 构建的轻量级开发者工具箱，提供常用的开发工具，通过 Web UI 进行交互。
 
+当前版本：**v0.5.0**
+
 ## 功能概览
 
 | 工具 | 描述 |
@@ -209,15 +211,16 @@ docker rmi dev-tools:latest
 
 ### 7. 订阅转换
 
-将 URL 订阅转换为 sing-box JSON 配置。页面只保留订阅链接输入和模板选择，转换结果会展示配置预览、配置订阅地址、模板信息和节点摘要。
+将 URL 订阅转换为 sing-box JSON 配置。页面只保留订阅链接输入、上游订阅参数和模板选择，转换结果会展示配置预览、配置订阅地址、模板信息和节点摘要，并支持下载生成的 JSON 文件。
 
 使用步骤:
 
 1. 打开“订阅转换”。
 2. 输入可访问的订阅 URL。
-3. 选择模板，默认使用 `file=1`（`config_template_groups_rule_set_tun`）。
-4. 点击“转换”，确认预览和节点列表。
-5. 复制生成的配置订阅地址，在 sing-box 客户端中使用。
+3. 按需调整 `ua`、`emoji`、`eps`，默认分别为 `clashmeta`、`1`、`ssr`。
+4. 选择模板，默认使用 `file=1`（`config_template_groups_rule_set_tun`）。
+5. 点击“转换”，确认预览和节点列表。
+6. 复制生成的配置订阅地址，或点击“下载 JSON”保存当前 sing-box 配置。
 
 模板说明:
 
@@ -287,7 +290,7 @@ docker rmi dev-tools:latest
 }
 ```
 
-`template`/`file` 可使用内置模板序号（1-5）、内置模板标识或远程模板 URL。页面默认使用数字序号，例如 `file=1` 对应 `config_template_groups_rule_set_tun`。`ua`、`emoji`、`eps` 可在页面填写；留空时分别使用 `clashmeta`、`1`、`ssr`。
+`template`/`file` 可使用内置模板序号（1-5）、内置模板标识或远程模板 URL。页面默认使用数字序号，例如 `file=1` 对应 `config_template_groups_rule_set_tun`。`ua` 可在 `clashmeta`、`v2rayng`、`sing-box` 中选择；`emoji` 可选择 `1` 或 `0`；`eps` 可填写，留空时默认使用 `ssr`。服务端会在日志中记录转换请求体、实际请求上游的订阅链接和生成的配置订阅链接，便于排查订阅参数问题。
 
 ## 技术栈
 

@@ -47,7 +47,7 @@ mod tests {
     use super::INDEX_HTML;
 
     #[test]
-    fn test_index_html_displays_version_0_4_0() {
-        assert!(INDEX_HTML.contains("Dev Tools v0.4.0"));
+    fn test_index_html_displays_version_0_5_0() {
+        assert!(INDEX_HTML.contains("Dev Tools v0.5.0"));
     }
 }
