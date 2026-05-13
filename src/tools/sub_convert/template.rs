@@ -103,7 +103,7 @@ pub fn resolve_template(
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .or_else(|| file.map(str::trim).filter(|value| !value.is_empty()))
-        .unwrap_or("sb-config-1.14");
+        .unwrap_or("1");
 
     if is_remote_template_value(requested) {
         return Ok(ResolvedTemplate {

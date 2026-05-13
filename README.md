@@ -215,7 +215,7 @@ docker rmi dev-tools:latest
 
 1. 打开“订阅转换”。
 2. 输入可访问的订阅 URL。
-3. 选择模板，默认使用 `sb-config-1.14`。
+3. 选择模板，默认使用 `file=1`（`config_template_groups_rule_set_tun`）。
 4. 点击“转换”，确认预览和节点列表。
 5. 复制生成的配置订阅地址，在 sing-box 客户端中使用。
 
@@ -223,7 +223,7 @@ docker rmi dev-tools:latest
 
 - 内置模板来自 `src/tools/sub_convert/templates/`，包括 `sb-config-1.12`、`sb-config-1.14` 等 sing-box 模板。
 - 模板中的 `{all}` 会展开为订阅中的全部代理节点；模板内的 `filter` 可按节点名称包含/排除节点。
-- 生成的配置地址使用 `file` 参数记录模板，例如 `/api/sub/config/https://example.com/sub?token=abc&file=sb-config-1.14`。
+- 生成的配置地址使用 `file` 参数记录模板，例如 `/api/sub/config/https://example.com/sub?token=abc&ua=clashmeta&emoji=1&eps=ssr&file=1`。
 - API 也支持远程模板 URL：请求转换时将 `file` 设为 `https://.../template.json`。远程订阅和远程模板都会拒绝本地、内网和私有 IP 目标。
 
 ## API 端点
@@ -279,12 +279,15 @@ docker rmi dev-tools:latest
 ```json
 {
   "subscription_url": "https://example.com/sub?token=abc",
-  "template": "sb-config-1.14",
-  "file": "sb-config-1.14"
+  "template": "1",
+  "file": "1",
+  "ua": "clashmeta",
+  "emoji": "1",
+  "eps": "ssr"
 }
 ```
 
-`template`/`file` 可使用内置模板标识、内置模板序号或远程模板 URL。页面会同时发送 `template` 和 `file`，以保持与 `file` 参数配置链接一致。
+`template`/`file` 可使用内置模板序号（1-5）、内置模板标识或远程模板 URL。页面默认使用数字序号，例如 `file=1` 对应 `config_template_groups_rule_set_tun`。`ua`、`emoji`、`eps` 可在页面填写；留空时分别使用 `clashmeta`、`1`、`ssr`。
 
 ## 技术栈
 

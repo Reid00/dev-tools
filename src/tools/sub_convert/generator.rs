@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use super::gen_clash;
 use super::gen_singbox;
 use super::gen_subscription;

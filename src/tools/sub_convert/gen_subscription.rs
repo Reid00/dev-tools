@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use super::types::{ProxyNode, ProxyProtocol, TransportType};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use serde_json::json;

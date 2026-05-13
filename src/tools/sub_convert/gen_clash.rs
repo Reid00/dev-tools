@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use super::types::{ProxyNode, ProxyProtocol, TransportType};
 use serde_yaml::{Mapping, Number, Value};
 

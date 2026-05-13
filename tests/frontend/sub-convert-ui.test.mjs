@@ -61,6 +61,9 @@ function loadSubscriptionGlobals({ subscriptionUrl = 'https://example.com/sub', 
   const elements = {
     'sub-url': { value: subscriptionUrl },
     'sub-template': { value: template },
+    'sub-ua': { value: 'surge' },
+    'sub-emoji': { value: '0' },
+    'sub-eps': { value: 'vless' },
   };
 
   const context = {
@@ -87,16 +90,19 @@ function loadSubscriptionGlobals({ subscriptionUrl = 'https://example.com/sub', 
   };
 }
 
-test('getSubPayloadFromInputs only sends subscription url, template, and file', () => {
+test('getSubPayloadFromInputs sends subscription url, template, file, and query params', () => {
   const { getSubPayloadFromInputs } = loadSubscriptionGlobals({
     subscriptionUrl: ' https://example.com/subscription ',
-    template: 'default',
+    template: '5',
   });
 
   assert.deepEqual(JSON.parse(JSON.stringify(getSubPayloadFromInputs())), {
     subscription_url: 'https://example.com/subscription',
-    template: 'default',
-    file: 'default',
+    template: '5',
+    file: '5',
+    ua: 'surge',
+    emoji: '0',
+    eps: 'vless',
   });
 });
 
@@ -107,9 +113,9 @@ test('formatTemplateBadgeText labels builtin templates', () => {
     formatTemplateBadgeText({
       name: 'default',
       source: 'builtin',
-      reference_value: 'builtin/default.json',
+      reference_value: '1',
     }),
-    'default · 内置模板 · file=builtin/default.json'
+    'default · 内置模板 · file=1'
   );
 });
 
@@ -179,6 +185,9 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
 
   const elements = {
     'sub-url': createElement({ value: ' https://example.com/subscription ' }),
+    'sub-ua': createElement({ value: 'clashmeta' }),
+    'sub-emoji': createElement({ value: '1' }),
+    'sub-eps': createElement({ value: 'ssr' }),
     'sub-template': createElement(),
     'sub-template-card': createElement({ hidden: true }),
     'sub-template-badge': createElement(),
@@ -273,8 +282,9 @@ test('subscription UI loads templates, converts, then clears stale result on fai
         body: [
           {
             name: 'Default sing-box',
-            reference_key: 'sb-config-1.14',
-            reference_value: 'builtin/sb-config-1.14.json',
+            reference_key: 'config_template_groups_rule_set_tun',
+            reference_value: '1',
+            index: 1,
             source: 'builtin',
             description: 'Default template',
           },
@@ -316,9 +326,9 @@ test('subscription UI loads templates, converts, then clears stale result on fai
   await ui.loadSubTemplates();
 
   assert.equal(ui.calls[0].url, '/api/sub/templates');
-  assert.match(ui.elements['sub-template'].innerHTML, /value="sb-config-1\.14"/);
+  assert.match(ui.elements['sub-template'].innerHTML, /value="1"/);
   assert.match(ui.elements['sub-template'].innerHTML, /value="remote-template"/);
-  assert.equal(ui.elements['sub-template'].value, 'sb-config-1.14');
+  assert.equal(ui.elements['sub-template'].value, '1');
   assert.equal(ui.elements['sub-template-card'].classList.contains('hidden'), false);
 
   ui.elements['sub-template'].value = 'remote-template';
@@ -331,6 +341,9 @@ test('subscription UI loads templates, converts, then clears stale result on fai
     subscription_url: 'https://example.com/subscription',
     template: 'remote-template',
     file: 'remote-template',
+    ua: 'clashmeta',
+    emoji: '1',
+    eps: 'ssr',
   });
   assert.equal(ui.currentSubContent, '{"outbounds":[{"tag":"proxy"}]}');
   assert.equal(ui.currentSubscriptionLink, 'https://tools.example/api/sub/download/abc');

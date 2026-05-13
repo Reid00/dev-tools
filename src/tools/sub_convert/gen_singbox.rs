@@ -1,3 +1,5 @@
+#![cfg_attr(not(test), allow(dead_code))]
+
 use super::types::{ProxyNode, ProxyProtocol, TransportType};
 use serde_json::{Value, json};
 use std::collections::HashSet;

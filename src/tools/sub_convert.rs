@@ -40,6 +40,12 @@ pub struct ConvertRequest {
     pub template: Option<String>,
     #[serde(default)]
     pub file: Option<String>,
+    #[serde(default)]
+    pub ua: Option<String>,
+    #[serde(default)]
+    pub emoji: Option<String>,
+    #[serde(default)]
+    pub eps: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -77,7 +83,13 @@ async fn convert_subscription(Json(req): Json<ConvertRequest>) -> Json<ConvertRe
 }
 
 async fn convert_subscription_inner(req: ConvertRequest) -> Result<ConvertResponse, String> {
+    let query_params = publish::ReferenceQueryParams::new(
+        req.ua.as_deref(),
+        req.emoji.as_deref(),
+        req.eps.as_deref(),
+    );
     let subscription_url = source::validate_subscription_input(&req.subscription_url)?;
+    let subscription_url = publish::append_reference_query_params(&subscription_url, &query_params);
     let resolved_template =
         template::resolve_template(req.template.as_deref(), req.file.as_deref())?;
     let template_text = template::load_template_text(&resolved_template).await?;
@@ -97,8 +109,11 @@ async fn convert_subscription_inner(req: ConvertRequest) -> Result<ConvertRespon
         .unwrap_or(0);
     let proxies = proxy_info_from_nodes(&nodes);
     let template_info = template_info_response(&resolved_template);
-    let subscription_path =
-        publish::build_config_path(&subscription_url, &resolved_template.reference_value);
+    let subscription_path = publish::build_config_path(
+        &subscription_url,
+        &template_file_value(&resolved_template),
+        &query_params,
+    );
 
     Ok(ConvertResponse {
         success: true,
@@ -137,11 +152,13 @@ async fn config_inner(raw_source: String, query: Option<&str>) -> Result<String,
         _ => raw_source,
     };
     let parsed_source = source::split_config_source_and_query(&raw_source)?;
+    let query_params = publish::ReferenceQueryParams::default();
+    let subscription_url =
+        publish::append_reference_query_params(&parsed_source.subscription_url, &query_params);
     let resolved_template = template::resolve_template(None, parsed_source.file.as_deref())?;
     let template_text = template::load_template_text(&resolved_template).await?;
     let source_content =
-        runtime::fetch_subscription(&parsed_source.subscription_url, &TargetFormat::Singbox)
-            .await?;
+        runtime::fetch_subscription(&subscription_url, &TargetFormat::Singbox).await?;
     let nodes = parser::parse_subscription_content(&source_content)?;
     if nodes.is_empty() {
         return Err("No valid proxy URLs found".to_string());
@@ -169,13 +186,21 @@ fn template_info_response(resolved_template: &template::ResolvedTemplate) -> Tem
         id: resolved_template.descriptor.id.to_string(),
         name: resolved_template.descriptor.name.to_string(),
         description: resolved_template.descriptor.description.to_string(),
-        reference_value: resolved_template.reference_value.clone(),
+        reference_value: template_file_value(resolved_template),
         source: match resolved_template.content_type {
             template::TemplateSource::Builtin => "builtin",
             template::TemplateSource::Remote => "remote",
         }
         .to_string(),
     }
+}
+
+fn template_file_value(resolved_template: &template::ResolvedTemplate) -> String {
+    resolved_template
+        .descriptor
+        .index
+        .map(|index| index.to_string())
+        .unwrap_or_else(|| resolved_template.reference_value.clone())
 }
 
 fn error_response(error: String) -> ConvertResponse {
@@ -285,8 +310,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_config_route_with_url_and_file_is_registered() {
-        let (status, body, _) =
-            get_route("/config/https://example.com/sub?token=abc&file=sb-config-1.14").await;
+        let (status, body, _) = get_route("/config/https://example.com/sub?token=abc&file=5").await;
 
         assert_ne!(status, StatusCode::NOT_FOUND);
         assert!(body.contains("HTTP error") || body.contains("Failed to fetch subscription"));
