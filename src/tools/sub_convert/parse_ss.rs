@@ -12,8 +12,8 @@ pub fn parse_ss(url: &str) -> Result<ProxyNode, String> {
         return parse_legacy_ss(raw);
     }
 
-    let parsed = Url::parse(&format!("ss://{raw}"))
-        .map_err(|e| format!("Failed to parse ss URL: {e}"))?;
+    let parsed =
+        Url::parse(&format!("ss://{raw}")).map_err(|e| format!("Failed to parse ss URL: {e}"))?;
 
     let server = parsed.host_str().unwrap_or("").to_string();
     let port = parsed.port().unwrap_or(8388);
@@ -109,8 +109,8 @@ fn base64_decode(input: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_ss;
     use super::super::types::ProxyProtocol;
+    use super::parse_ss;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
 
     #[test]

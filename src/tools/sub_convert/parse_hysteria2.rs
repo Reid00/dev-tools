@@ -84,8 +84,8 @@ fn decode_component(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_hysteria2;
     use super::super::types::ProxyProtocol;
+    use super::parse_hysteria2;
 
     #[test]
     fn test_parse_hysteria2_full_url() {
@@ -125,7 +125,8 @@ mod tests {
 
     #[test]
     fn test_parse_hysteria2_prefers_sni_over_peer_regardless_of_query_order() {
-        let url = "hy2://secret@example.com:443?peer=peer.example.com&sni=sni.example.com#Alias%20HY2";
+        let url =
+            "hy2://secret@example.com:443?peer=peer.example.com&sni=sni.example.com#Alias%20HY2";
 
         let node = parse_hysteria2(url).unwrap();
 

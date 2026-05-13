@@ -106,8 +106,8 @@ pub fn parse_vless(url: &str) -> Result<ProxyNode, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_vless;
     use super::super::types::{ProxyProtocol, TransportType};
+    use super::parse_vless;
 
     #[test]
     fn test_parse_vless_reality() {

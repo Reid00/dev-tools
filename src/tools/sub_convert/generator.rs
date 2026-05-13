@@ -30,22 +30,6 @@ impl TargetFormat {
             Self::Clash => "clash",
         }
     }
-
-    pub fn content_type(&self) -> &'static str {
-        match self {
-            Self::Subscription | Self::V2ray => "text/plain; charset=utf-8",
-            Self::Singbox | Self::HiddifySafe => "application/json; charset=utf-8",
-            Self::Clash => "text/yaml; charset=utf-8",
-        }
-    }
-
-    pub fn code_class(&self) -> &'static str {
-        match self {
-            Self::Subscription | Self::V2ray => "language-text",
-            Self::Singbox | Self::HiddifySafe => "language-json",
-            Self::Clash => "language-yaml",
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -73,7 +57,8 @@ fn node_to_proxy_info(node: &ProxyNode) -> ProxyInfo {
 }
 
 fn filter_hiddify_safe_nodes(nodes: &[ProxyNode]) -> Vec<ProxyNode> {
-    nodes.iter()
+    nodes
+        .iter()
         .filter(|node| {
             matches!(
                 node.protocol,
@@ -126,7 +111,10 @@ pub fn generate_output(
                 include_dns,
                 matches!(format, TargetFormat::HiddifySafe),
             )?;
-            let outbounds_count = config["outbounds"].as_array().map(|items| items.len()).unwrap_or(0);
+            let outbounds_count = config["outbounds"]
+                .as_array()
+                .map(|items| items.len())
+                .unwrap_or(0);
             let content = serde_json::to_string_pretty(&config)
                 .map_err(|e| format!("Failed to serialize sing-box config: {e}"))?;
             Ok(GenerateResult {
@@ -194,7 +182,10 @@ mod tests {
         assert!(config["outbounds"].is_array());
         assert!(config["inbounds"].is_array());
         assert_eq!(result.proxy_info.len(), 1);
-        assert_eq!(result.outbounds_count, config["outbounds"].as_array().unwrap().len());
+        assert_eq!(
+            result.outbounds_count,
+            config["outbounds"].as_array().unwrap().len()
+        );
     }
 
     #[test]
@@ -272,30 +263,48 @@ mod tests {
         let outbounds = config["outbounds"].as_array().unwrap();
 
         assert_eq!(result.proxy_info.len(), 3);
-        assert!(result
-            .proxy_info
-            .iter()
-            .any(|proxy| proxy.protocol == "vmess" && proxy.name == "TLS VMess"));
-        assert!(result
-            .proxy_info
-            .iter()
-            .any(|proxy| proxy.protocol == "vless" && proxy.name == "TLS VLESS"));
-        assert!(result
-            .proxy_info
-            .iter()
-            .any(|proxy| proxy.protocol == "trojan" && proxy.name == "Trojan"));
-        assert!(result
-            .proxy_info
-            .iter()
-            .all(|proxy| proxy.name != "Reality VLESS" && proxy.name != "Reality Trojan"));
-        assert!(result
-            .proxy_info
-            .iter()
-            .all(|proxy| proxy.name != "Plain VMess"));
+        assert!(
+            result
+                .proxy_info
+                .iter()
+                .any(|proxy| proxy.protocol == "vmess" && proxy.name == "TLS VMess")
+        );
+        assert!(
+            result
+                .proxy_info
+                .iter()
+                .any(|proxy| proxy.protocol == "vless" && proxy.name == "TLS VLESS")
+        );
+        assert!(
+            result
+                .proxy_info
+                .iter()
+                .any(|proxy| proxy.protocol == "trojan" && proxy.name == "Trojan")
+        );
+        assert!(
+            result
+                .proxy_info
+                .iter()
+                .all(|proxy| proxy.name != "Reality VLESS" && proxy.name != "Reality Trojan")
+        );
+        assert!(
+            result
+                .proxy_info
+                .iter()
+                .all(|proxy| proxy.name != "Plain VMess")
+        );
         assert!(outbounds.iter().any(|outbound| outbound["type"] == "vmess"));
         assert!(outbounds.iter().any(|outbound| outbound["type"] == "vless"));
-        assert!(outbounds.iter().any(|outbound| outbound["type"] == "trojan"));
-        assert!(outbounds.iter().all(|outbound| outbound["type"] != "hysteria2"));
+        assert!(
+            outbounds
+                .iter()
+                .any(|outbound| outbound["type"] == "trojan")
+        );
+        assert!(
+            outbounds
+                .iter()
+                .all(|outbound| outbound["type"] != "hysteria2")
+        );
     }
 
     #[test]
@@ -329,7 +338,10 @@ mod tests {
         let config: serde_json::Value = serde_json::from_str(&result.content).unwrap();
         let outbounds = config["outbounds"].as_array().unwrap();
 
-        for outbound in outbounds.iter().filter(|outbound| outbound["tag"] != "proxy") {
+        for outbound in outbounds
+            .iter()
+            .filter(|outbound| outbound["tag"] != "proxy")
+        {
             assert_eq!(outbound["domain_resolver"], "dns-local");
         }
     }
@@ -349,12 +361,20 @@ mod tests {
             ..ProxyNode::default_with(ProxyProtocol::Trojan, "IPv6 Trojan", "2001:db8::1", 443)
         };
 
-        let result = generate_output(&[tls_vmess, trojan], &TargetFormat::HiddifySafe, false, true)
-            .unwrap();
+        let result = generate_output(
+            &[tls_vmess, trojan],
+            &TargetFormat::HiddifySafe,
+            false,
+            true,
+        )
+        .unwrap();
         let config: serde_json::Value = serde_json::from_str(&result.content).unwrap();
         let outbounds = config["outbounds"].as_array().unwrap();
 
-        for outbound in outbounds.iter().filter(|outbound| outbound["tag"] != "proxy") {
+        for outbound in outbounds
+            .iter()
+            .filter(|outbound| outbound["tag"] != "proxy")
+        {
             assert!(outbound.get("domain_resolver").is_none());
         }
     }
@@ -373,8 +393,13 @@ mod tests {
             ..ProxyNode::default_with(ProxyProtocol::Hysteria2, "HY2", "hy2.example.com", 1443)
         };
 
-        let err = generate_output(&[plain_vmess, hy2], &TargetFormat::HiddifySafe, false, false)
-            .unwrap_err();
+        let err = generate_output(
+            &[plain_vmess, hy2],
+            &TargetFormat::HiddifySafe,
+            false,
+            false,
+        )
+        .unwrap_err();
 
         assert_eq!(
             err,

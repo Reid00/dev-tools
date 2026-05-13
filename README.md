@@ -12,6 +12,7 @@
 | 🌐 翻译工具 | 中英文互译 (基于阿里云机器翻译) |
 | ✍️ Markdown 渲染 | Markdown 实时预览、服务端渲染、工具栏快捷操作 |
 | 🔌 HTTP 请求 | HTTP 请求构建器 (类似轻量级 Postman) |
+| 📡 订阅转换 | URL 订阅转换为 sing-box 配置，支持内置/远程模板 |
 
 ## 快速开始
 
@@ -206,6 +207,25 @@ docker rmi dev-tools:latest
 - **历史记录**: 自动保存最近 50 条请求
 - **模板**: 保存常用请求配置
 
+### 7. 订阅转换
+
+将 URL 订阅转换为 sing-box JSON 配置。页面只保留订阅链接输入和模板选择，转换结果会展示配置预览、配置订阅地址、模板信息和节点摘要。
+
+使用步骤:
+
+1. 打开“订阅转换”。
+2. 输入可访问的订阅 URL。
+3. 选择模板，默认使用 `sb-config-1.14`。
+4. 点击“转换”，确认预览和节点列表。
+5. 复制生成的配置订阅地址，在 sing-box 客户端中使用。
+
+模板说明:
+
+- 内置模板来自 `src/tools/sub_convert/templates/`，包括 `sb-config-1.12`、`sb-config-1.14` 等 sing-box 模板。
+- 模板中的 `{all}` 会展开为订阅中的全部代理节点；模板内的 `filter` 可按节点名称包含/排除节点。
+- 生成的配置地址使用 `file` 参数记录模板，例如 `/api/sub/config/https://example.com/sub?token=abc&file=sb-config-1.14`。
+- API 也支持远程模板 URL：请求转换时将 `file` 设为 `https://.../template.json`。远程订阅和远程模板都会拒绝本地、内网和私有 IP 目标。
+
 ## API 端点
 
 ### 时间转换 `/api/time`
@@ -246,6 +266,26 @@ docker rmi dev-tools:latest
 |------|------|------|
 | `/send` | POST | 发送 HTTP 请求 |
 
+### 订阅转换 `/api/sub`
+
+| 端点 | 方法 | 描述 |
+|------|------|------|
+| `/templates` | GET | 获取可选 sing-box 模板列表 |
+| `/convert` | POST | 根据订阅 URL 和模板生成 sing-box 配置预览 |
+| `/config/{*source}` | GET | 返回可直接订阅的 sing-box JSON 配置 |
+
+`POST /api/sub/convert` 请求示例:
+
+```json
+{
+  "subscription_url": "https://example.com/sub?token=abc",
+  "template": "sb-config-1.14",
+  "file": "sb-config-1.14"
+}
+```
+
+`template`/`file` 可使用内置模板标识、内置模板序号或远程模板 URL。页面会同时发送 `template` 和 `file`，以保持与 `file` 参数配置链接一致。
+
 ## 技术栈
 
 - **后端**: Rust, Axum, Tokio
@@ -271,7 +311,8 @@ dev-tools/
 │       ├── json_tools.rs    # JSON 工具模块
 │       ├── translate.rs     # 翻译模块
 │       ├── markdown.rs      # Markdown 渲染模块
-│       └── http_client.rs   # HTTP 客户端模块
+│       ├── http_client.rs   # HTTP 客户端模块
+│       └── sub_convert/     # sing-box 订阅转换模块
 ├── static/
 │   └── index.html           # 前端页面
 ├── Cargo.toml

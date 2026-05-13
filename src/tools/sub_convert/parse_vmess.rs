@@ -106,8 +106,8 @@ fn get_u32(values: &HashMap<String, Value>, key: &str) -> Option<u32> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_vmess;
     use super::super::types::{ProxyProtocol, TransportType};
+    use super::parse_vmess;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use serde_json::json;
 

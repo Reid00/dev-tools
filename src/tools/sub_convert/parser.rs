@@ -1,7 +1,6 @@
 use super::{
-    parse_anytls, parse_clash, parse_hysteria2, parse_ss, parse_ssr, parse_trojan,
-    parse_vless, parse_vmess,
-    types::ProxyNode,
+    parse_anytls, parse_clash, parse_hysteria2, parse_ss, parse_ssr, parse_trojan, parse_vless,
+    parse_vmess, types::ProxyNode,
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 
@@ -96,7 +95,6 @@ pub fn parse_subscription_content(content: &str) -> Result<Vec<ProxyNode>, Strin
     Ok(Vec::new())
 }
 
-
 fn parse_proxy_urls(urls: &[&str]) -> Result<Vec<ProxyNode>, String> {
     urls.iter()
         .map(|url| parse_proxy_url(url))
@@ -105,7 +103,8 @@ fn parse_proxy_urls(urls: &[&str]) -> Result<Vec<ProxyNode>, String> {
 }
 
 fn filter_info_nodes(nodes: Vec<ProxyNode>) -> Vec<ProxyNode> {
-    nodes.into_iter()
+    nodes
+        .into_iter()
         .filter(|node| !is_info_node_name(&node.name))
         .collect()
 }
@@ -122,7 +121,11 @@ fn extract_proxy_urls(content: &str) -> Vec<&str> {
         .lines()
         .map(str::trim)
         .filter(|line| !line.is_empty())
-        .filter(|line| SUPPORTED_PREFIXES.iter().any(|prefix| line.starts_with(prefix)))
+        .filter(|line| {
+            SUPPORTED_PREFIXES
+                .iter()
+                .any(|prefix| line.starts_with(prefix))
+        })
         .collect()
 }
 
@@ -207,4 +210,3 @@ mod tests {
         assert!(err.contains("Failed to parse Clash YAML"));
     }
 }
-

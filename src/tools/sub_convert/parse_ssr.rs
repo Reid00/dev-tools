@@ -72,8 +72,8 @@ fn base64_decode(input: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_ssr;
     use super::super::types::ProxyProtocol;
+    use super::parse_ssr;
     use base64::{Engine as _, engine::general_purpose::STANDARD};
 
     #[test]

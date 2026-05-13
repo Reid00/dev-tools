@@ -1,4 +1,4 @@
-use super::{ConvertRequest, generator::TargetFormat};
+use super::generator::TargetFormat;
 #[cfg(test)]
 use super::{
     gen_clash, gen_singbox,
@@ -7,10 +7,13 @@ use super::{
 };
 #[cfg(test)]
 use base64::Engine;
-use reqwest::{Url, header};
+use reqwest::{StatusCode, Url, header};
 #[cfg(test)]
 use serde_json::{Value, json};
-use std::net::{IpAddr, SocketAddr};
+use std::{
+    future::Future,
+    net::{IpAddr, SocketAddr},
+};
 use tokio::net::lookup_host;
 #[cfg(test)]
 use urlencoding;
@@ -519,7 +522,9 @@ pub(crate) fn build_content(
 }
 
 #[cfg(test)]
-pub(crate) fn generate_subscription_content(proxy_urls: &[String]) -> Result<(String, Vec<ProxyInfo>), String> {
+pub(crate) fn generate_subscription_content(
+    proxy_urls: &[String],
+) -> Result<(String, Vec<ProxyInfo>), String> {
     let result = build_content(proxy_urls, &TargetFormat::Subscription, false, false)?;
     Ok((result.content, result.proxy_info))
 }
@@ -566,19 +571,6 @@ pub(crate) fn sanitize_source(source: &str) -> Result<String, String> {
     Ok(source.trim().to_string())
 }
 
-pub(crate) fn sanitize_raw_content(content: &str) -> Result<String, String> {
-    if content.trim().is_empty() {
-        return Err("Raw subscription content cannot be empty".to_string());
-    }
-
-    const MAX_SUBSCRIPTION_SIZE: usize = 2 * 1024 * 1024;
-    if content.len() > MAX_SUBSCRIPTION_SIZE {
-        return Err("Subscription content is too large".to_string());
-    }
-
-    Ok(content.trim().to_string())
-}
-
 pub(crate) fn is_forbidden_ip(ip: IpAddr) -> bool {
     match ip {
         IpAddr::V4(v4) => {
@@ -593,7 +585,9 @@ pub(crate) fn is_forbidden_ip(ip: IpAddr) -> bool {
                 || v6.is_unspecified()
                 || v6.is_unique_local()
                 || v6.is_unicast_link_local()
-                || v6.to_ipv4_mapped().is_some_and(|mapped| is_forbidden_ip(IpAddr::V4(mapped)))
+                || v6
+                    .to_ipv4_mapped()
+                    .is_some_and(|mapped| is_forbidden_ip(IpAddr::V4(mapped)))
         }
     }
 }
@@ -616,7 +610,9 @@ fn validate_subscription_url_parsed(parsed: &Url) -> Result<(), String> {
     let host = parsed
         .host_str()
         .ok_or_else(|| "Subscription URL host is required".to_string())?;
-    let normalized_host = host.trim_matches(|c| c == '[' || c == ']').to_ascii_lowercase();
+    let normalized_host = host
+        .trim_matches(|c| c == '[' || c == ']')
+        .to_ascii_lowercase();
 
     if normalized_host == "localhost" || normalized_host.ends_with(".localhost") {
         return Err("localhost is not allowed".to_string());
@@ -664,73 +660,160 @@ async fn validate_subscription_target(url: &Url) -> Result<Vec<SocketAddr>, Stri
     Ok(addrs)
 }
 
-pub(crate) async fn fetch_subscription(url: &str, format: &TargetFormat) -> Result<String, String> {
+pub(crate) enum FetchOutcome {
+    Redirect(String),
+    Body(Vec<u8>),
+}
+
+async fn fetch_remote_text_with<F, Fut>(
+    url: &str,
+    _user_agent: &str,
+    response_label: &str,
+    max_size: usize,
+    mut fetch_once: F,
+) -> Result<String, String>
+where
+    F: FnMut(Url) -> Fut,
+    Fut: Future<Output = Result<FetchOutcome, String>>,
+{
     let mut current_url = Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
 
+    for _ in 0..5 {
+        validate_subscription_target(&current_url).await?;
+        match fetch_once(current_url.clone()).await? {
+            FetchOutcome::Redirect(location) => {
+                current_url = current_url
+                    .join(&location)
+                    .map_err(|e| format!("Invalid redirect URL: {}", e))?;
+            }
+            FetchOutcome::Body(bytes) => {
+                if bytes.len() > max_size {
+                    return Err(size_error(response_label));
+                }
+
+                let text = String::from_utf8_lossy(&bytes).to_string();
+                tracing::info!("{} length: {} bytes", response_label, text.len());
+                return Ok(text);
+            }
+        }
+    }
+
+    Err(format!(
+        "Too many redirects while fetching {}",
+        response_label
+    ))
+}
+
+pub(crate) async fn fetch_remote_text(
+    url: &str,
+    user_agent: &str,
+    response_label: &str,
+    max_size: usize,
+) -> Result<String, String> {
+    fetch_remote_text_with(url, user_agent, response_label, max_size, |current_url| {
+        let user_agent = user_agent.to_string();
+        async move {
+            let resolved_addrs = validate_subscription_target(&current_url).await?;
+            let host = current_url
+                .host_str()
+                .ok_or_else(|| "Subscription URL host is required".to_string())?
+                .to_string();
+
+            let client = reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .danger_accept_invalid_certs(false)
+                .redirect(reqwest::redirect::Policy::none())
+                .resolve_to_addrs(&host, &resolved_addrs)
+                .build()
+                .map_err(|e| format!("Failed to create client: {}", e))?;
+
+            let resp = client
+                .get(current_url)
+                .header("User-Agent", user_agent)
+                .header("Accept", "*/*")
+                .send()
+                .await
+                .map_err(|e| fetch_error(response_label, e))?;
+
+            if resp.status().is_redirection() {
+                let location = resp
+                    .headers()
+                    .get(header::LOCATION)
+                    .ok_or_else(|| "Redirect response missing Location header".to_string())?
+                    .to_str()
+                    .map_err(|e| format!("Invalid redirect Location header: {}", e))?;
+                return Ok(FetchOutcome::Redirect(location.to_string()));
+            }
+
+            if !resp.status().is_success() {
+                return Err(http_error(response_label, resp.status()));
+            }
+
+            if resp
+                .content_length()
+                .is_some_and(|content_length| content_length > max_size as u64)
+            {
+                return Err(size_error(response_label));
+            }
+
+            let mut body = Vec::new();
+            let mut resp = resp;
+            while let Some(chunk) = resp
+                .chunk()
+                .await
+                .map_err(|e| read_error(response_label, e))?
+            {
+                body.extend_from_slice(&chunk);
+                if body.len() > max_size {
+                    return Err(size_error(response_label));
+                }
+            }
+
+            Ok(FetchOutcome::Body(body))
+        }
+    })
+    .await
+}
+
+fn fetch_error(response_label: &str, error: reqwest::Error) -> String {
+    match response_label {
+        "subscription" => format!("Failed to fetch subscription: {}", error),
+        "remote template" => format!("Failed to fetch remote template: {}", error),
+        _ => format!("Failed to fetch {}: {}", response_label, error),
+    }
+}
+
+fn read_error(response_label: &str, error: reqwest::Error) -> String {
+    match response_label {
+        "remote template" => format!("Failed to read remote template: {}", error),
+        _ => format!("Failed to read response: {}", error),
+    }
+}
+
+fn http_error(response_label: &str, status: StatusCode) -> String {
+    match response_label {
+        "subscription" => format!("HTTP error: {}", status),
+        "remote template" => format!("Remote template HTTP error: {}", status),
+        _ => format!("{} HTTP error: {}", response_label, status),
+    }
+}
+
+fn size_error(response_label: &str) -> String {
+    match response_label {
+        "subscription" => "Subscription response is too large".to_string(),
+        "remote template" => "Remote template response is too large".to_string(),
+        _ => format!("{} is too large", response_label),
+    }
+}
+
+pub(crate) async fn fetch_subscription(url: &str, format: &TargetFormat) -> Result<String, String> {
     let user_agent = match format {
         TargetFormat::Clash => "ClashforWindows/0.20.39",
         TargetFormat::Singbox | TargetFormat::HiddifySafe => "sing-box/1.10.0",
         TargetFormat::Subscription | TargetFormat::V2ray => "Hiddify/1.0.0",
     };
 
-    for _ in 0..5 {
-        let resolved_addrs = validate_subscription_target(&current_url).await?;
-        let host = current_url
-            .host_str()
-            .ok_or_else(|| "Subscription URL host is required".to_string())?
-            .to_string();
-
-        let client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
-            .danger_accept_invalid_certs(false)
-            .redirect(reqwest::redirect::Policy::none())
-            .resolve_to_addrs(&host, &resolved_addrs)
-            .build()
-            .map_err(|e| format!("Failed to create client: {}", e))?;
-
-        let resp = client
-            .get(current_url.clone())
-            .header("User-Agent", user_agent)
-            .header("Accept", "*/*")
-            .send()
-            .await
-            .map_err(|e| format!("Failed to fetch subscription: {}", e))?;
-
-        if resp.status().is_redirection() {
-            let location = resp
-                .headers()
-                .get(header::LOCATION)
-                .ok_or_else(|| "Redirect response missing Location header".to_string())?
-                .to_str()
-                .map_err(|e| format!("Invalid redirect Location header: {}", e))?;
-            current_url = current_url
-                .join(location)
-                .map_err(|e| format!("Invalid redirect URL: {}", e))?;
-            continue;
-        }
-
-        if !resp.status().is_success() {
-            return Err(format!("HTTP error: {}", resp.status()));
-        }
-
-        let bytes = resp
-            .bytes()
-            .await
-            .map_err(|e| format!("Failed to read response: {}", e))?;
-
-        const MAX_SUBSCRIPTION_SIZE: usize = 2 * 1024 * 1024;
-        if bytes.len() > MAX_SUBSCRIPTION_SIZE {
-            return Err("Subscription response is too large".to_string());
-        }
-
-        let text = String::from_utf8_lossy(&bytes).to_string();
-
-        tracing::info!("Subscription response length: {} bytes", text.len());
-
-        return Ok(text);
-    }
-
-    Err("Too many redirects while fetching subscription".to_string())
+    fetch_remote_text(url, user_agent, "subscription", 2 * 1024 * 1024).await
 }
 
 #[cfg(test)]
@@ -982,7 +1065,9 @@ pub(crate) fn clash_proxy_to_url(proxy: &serde_yaml::Mapping) -> Result<Option<S
                             if let Some(path) = ws_opts.get("path").and_then(|v| v.as_str()) {
                                 vmess_obj["path"] = json!(path);
                             }
-                            if let Some(headers) = ws_opts.get("headers").and_then(|v| v.as_mapping()) {
+                            if let Some(headers) =
+                                ws_opts.get("headers").and_then(|v| v.as_mapping())
+                            {
                                 if let Some(host) = headers.get("Host").and_then(|v| v.as_str()) {
                                     vmess_obj["host"] = json!(host);
                                 }
@@ -1032,7 +1117,9 @@ pub(crate) fn clash_proxy_to_url(proxy: &serde_yaml::Mapping) -> Result<Option<S
                             if let Some(path) = ws_opts.get("path").and_then(|v| v.as_str()) {
                                 url.push_str(&format!("&path={}", urlencoding::encode(path)));
                             }
-                            if let Some(headers) = ws_opts.get("headers").and_then(|v| v.as_mapping()) {
+                            if let Some(headers) =
+                                ws_opts.get("headers").and_then(|v| v.as_mapping())
+                            {
                                 if let Some(host) = headers.get("Host").and_then(|v| v.as_str()) {
                                     url.push_str(&format!("&host={}", urlencoding::encode(host)));
                                 }
@@ -1085,7 +1172,9 @@ pub(crate) fn clash_proxy_to_url(proxy: &serde_yaml::Mapping) -> Result<Option<S
                             if let Some(path) = ws_opts.get("path").and_then(|v| v.as_str()) {
                                 url.push_str(&format!("&path={}", urlencoding::encode(path)));
                             }
-                            if let Some(headers) = ws_opts.get("headers").and_then(|v| v.as_mapping()) {
+                            if let Some(headers) =
+                                ws_opts.get("headers").and_then(|v| v.as_mapping())
+                            {
                                 if let Some(host) = headers.get("Host").and_then(|v| v.as_str()) {
                                     url.push_str(&format!("&host={}", urlencoding::encode(host)));
                                 }
@@ -1144,7 +1233,8 @@ pub(crate) fn clash_proxy_to_url(proxy: &serde_yaml::Mapping) -> Result<Option<S
                             url.push_str(&format!("obfs={}&", urlencoding::encode(obfs)));
                         }
                     }
-                    if let Some(obfs_password) = proxy.get("obfs-password").and_then(|v| v.as_str()) {
+                    if let Some(obfs_password) = proxy.get("obfs-password").and_then(|v| v.as_str())
+                    {
                         if !obfs_password.is_empty() {
                             url.push_str(&format!(
                                 "obfs-password={}&",
@@ -1227,7 +1317,9 @@ pub(crate) fn clash_proxy_to_url(proxy: &serde_yaml::Mapping) -> Result<Option<S
                             if let Some(path) = ws_opts.get("path").and_then(|v| v.as_str()) {
                                 url.push_str(&format!("path={}&", urlencoding::encode(path)));
                             }
-                            if let Some(headers) = ws_opts.get("headers").and_then(|v| v.as_mapping()) {
+                            if let Some(headers) =
+                                ws_opts.get("headers").and_then(|v| v.as_mapping())
+                            {
                                 if let Some(host) = headers.get("Host").and_then(|v| v.as_str()) {
                                     url.push_str(&format!("host={}&", urlencoding::encode(host)));
                                 }
@@ -1247,41 +1339,6 @@ pub(crate) fn clash_proxy_to_url(proxy: &serde_yaml::Mapping) -> Result<Option<S
             }
         }
     }
-}
-
-pub(crate) fn source_from_request(req: &ConvertRequest) -> Result<String, String> {
-    if let Some(url) = req
-        .subscription_url
-        .as_ref()
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-    {
-        validate_subscription_url(url)?;
-        return Ok(url.to_string());
-    }
-
-    if let Some(content) = req
-        .content
-        .as_ref()
-        .map(|s| s.trim())
-        .filter(|s| !s.is_empty())
-    {
-        let raw = sanitize_raw_content(content)?;
-        return Ok(format!("raw:{raw}"));
-    }
-
-    Err("Either subscription_url or content is required".to_string())
-}
-
-pub(crate) async fn parse_source_async(source: &str, format: &TargetFormat) -> Result<String, String> {
-    let trimmed = source.trim();
-
-    if let Some(raw) = trimmed.strip_prefix("raw:") {
-        return sanitize_raw_content(raw);
-    }
-
-    let source = sanitize_source(trimmed)?;
-    fetch_subscription(&source, format).await
 }
 
 #[cfg(test)]
@@ -1327,5 +1384,27 @@ mod tests {
             .unwrap_err();
         assert!(err.contains("localhost"));
     }
-}
 
+    #[tokio::test]
+    async fn test_fetch_remote_text_rejects_private_redirect_target() {
+        let err = fetch_remote_text_with(
+            "http://93.184.216.34/start",
+            "test-agent/1.0",
+            "test response",
+            1024,
+            |url: Url| async move {
+                if url.as_str() == "http://93.184.216.34/start" {
+                    Ok(FetchOutcome::Redirect(
+                        "http://127.0.0.1/private".to_string(),
+                    ))
+                } else {
+                    Ok(FetchOutcome::Body(Vec::new()))
+                }
+            },
+        )
+        .await
+        .unwrap_err();
+
+        assert!(err.contains("Private IP"));
+    }
+}

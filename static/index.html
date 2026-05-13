@@ -839,40 +839,23 @@
                     <svg class="w-7 h-7 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                     订阅转换
                 </h2>
-                <p class="text-sm text-gray-500 mb-6">将 Clash / V2Ray 订阅转换为可分发订阅链接，支持 sing-box JSON 与 Clash YAML 输出</p>
+                <p class="text-sm text-gray-500 mb-6">将 URL 订阅转换为基于模板渲染的 sing-box JSON 配置，并生成可分发订阅链接</p>
 
                 <!-- URL Input -->
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 mb-6">
                     <h3 class="text-base font-semibold text-gray-700 mb-4">订阅链接</h3>
                     <div class="space-y-3">
-                        <input id="sub-url" type="text" placeholder="输入订阅链接 (支持 Clash / V2Ray 订阅)" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                                <label for="sub-format" class="block text-sm text-gray-600 mb-1">输出格式</label>
-                                <select id="sub-format" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
-                                    <option value="subscription">通用订阅（推荐/Hiddify）</option>
-                                    <option value="v2ray">V2Ray URI 列表（明文）</option>
-                                    <option value="clash">Clash YAML</option>
-                                    <option value="singbox">sing-box JSON</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label for="sub-preset" class="block text-sm text-gray-600 mb-1">预设</label>
-                                <select id="sub-preset" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
-                                    <option value="default">default</option>
-                                </select>
-                            </div>
+                        <input id="sub-url" type="text" placeholder="输入订阅链接（仅支持 URL 订阅）" class="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm">
+                        <div>
+                            <label for="sub-template" class="block text-sm text-gray-600 mb-1">模板</label>
+                            <select id="sub-template" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"></select>
                         </div>
-                        <div class="flex flex-wrap gap-3 items-center">
-                            <label class="flex items-center gap-2 text-sm text-gray-600">
-                                <input type="checkbox" id="sub-include-direct" class="w-4 h-4 rounded" checked>
-                                <span>包含直连/阻断规则</span>
-                            </label>
-                            <label class="flex items-center gap-2 text-sm text-gray-600">
-                                <input type="checkbox" id="sub-include-dns" class="w-4 h-4 rounded" checked>
-                                <span>包含 DNS 配置</span>
-                            </label>
-                            <button onclick="convertSubscription()" id="sub-convert-btn" class="ml-auto px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                        <div id="sub-template-card" class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600 hidden">
+                            <div id="sub-template-badge" class="font-medium text-gray-700"></div>
+                            <div id="sub-template-description" class="mt-1"></div>
+                        </div>
+                        <div class="flex justify-end">
+                            <button onclick="convertSubscription()" id="sub-convert-btn" class="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                                 转换
                             </button>
@@ -899,6 +882,10 @@
                             <button onclick="copySubContent()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">复制内容</button>
                         </div>
                     </div>
+                    <div id="sub-template-result" class="mb-4 hidden">
+                        <label class="block text-xs text-gray-500 mb-1">模板信息</label>
+                        <div id="sub-template-result-text" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-700"></div>
+                    </div>
                     <div class="mb-4">
                         <label class="block text-xs text-gray-500 mb-1">订阅链接</label>
                         <div id="sub-link" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono break-all text-gray-700"></div>
@@ -915,17 +902,6 @@
 
                 <!-- Error -->
                 <div id="sub-error" class="hidden mt-4 p-4 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600"></div>
-
-                <!-- Manual Input Section -->
-                <div class="mt-6 bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-                    <h3 class="text-base font-semibold text-gray-700 mb-4">手动输入</h3>
-                    <p class="text-xs text-gray-500 mb-3">直接粘贴订阅内容（Base64 编码或原始代理链接）</p>
-                    <textarea id="sub-manual-input" class="w-full h-32 px-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none font-mono text-sm resize-y" placeholder="粘贴订阅内容或代理链接...&#10;支持格式: vmess://, vless://, trojan://, ss://"></textarea>
-                    <div class="flex gap-2 mt-3">
-                        <button onclick="parseManualInput()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">解析并转换</button>
-                        <button onclick="clearSubInput()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-sm font-medium transition-colors">清空</button>
-                    </div>
-                </div>
             </div>
 
             <!-- ===== TOOL 8: Utilities ===== -->
@@ -2500,6 +2476,8 @@ ${preview.innerHTML}
         initHttpClient();
         initMarkdownEditor();
         initTranslateHistory();
+        document.getElementById('sub-template').addEventListener('change', updateSubTemplateCard);
+        loadSubTemplates().catch(error => showToast('模板加载失败: ' + error.message));
     });
 
     // ===== TOOL 6: HTTP Client =====
@@ -3143,27 +3121,88 @@ ${preview.innerHTML}
     // ===== Subscription Converter =====
     let currentSubContent = '';
     let currentSubscriptionLink = '';
+    let currentSubTemplates = [];
 
     function getSubPayloadFromInputs() {
+        const subscriptionUrl = document.getElementById('sub-url').value.trim();
+        const template = document.getElementById('sub-template').value;
         return {
-            format: document.getElementById('sub-format').value,
-            preset: document.getElementById('sub-preset').value,
-            include_direct: document.getElementById('sub-include-direct').checked,
-            include_dns: document.getElementById('sub-include-dns').checked
+            subscription_url: subscriptionUrl,
+            template,
+            file: template,
         };
     }
 
-    async function convertSubscription() {
-        const url = document.getElementById('sub-url').value.trim();
-        if (!url) {
-            showToast('请输入订阅链接');
+    function formatTemplateBadgeText(templateInfo) {
+        const sourceText = templateInfo?.source === 'remote' ? '远程模板' : '内置模板';
+        return `${templateInfo?.name || '-'} · ${sourceText} · file=${templateInfo?.reference_value || '-'}`;
+    }
+
+    async function loadSubTemplates() {
+        const res = await fetch('/api/sub/templates');
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        currentSubTemplates = await res.json();
+        const templateSelect = document.getElementById('sub-template');
+        templateSelect.innerHTML = currentSubTemplates.map((template) => `
+            <option value="${escapeHtml(template.reference_key)}">${escapeHtml(template.name)}</option>
+        `).join('');
+
+        const defaultTemplate = currentSubTemplates.find((template) => template.reference_key === 'sb-config-1.14');
+        if (defaultTemplate) {
+            templateSelect.value = defaultTemplate.reference_key;
+        }
+
+        updateSubTemplateCard();
+    }
+
+    function updateSubTemplateCard() {
+        const templateSelect = document.getElementById('sub-template');
+        const templateCard = document.getElementById('sub-template-card');
+        const templateBadge = document.getElementById('sub-template-badge');
+        const templateDescription = document.getElementById('sub-template-description');
+        const templateInfo = currentSubTemplates.find((template) => template.reference_key === templateSelect.value);
+
+        if (!templateInfo) {
+            templateCard.classList.add('hidden');
+            templateBadge.textContent = '';
+            templateDescription.textContent = '';
             return;
         }
 
-        const payload = {
-            ...getSubPayloadFromInputs(),
-            subscription_url: url
-        };
+        const sourceText = templateInfo.source === 'remote' ? '远程模板' : '内置模板';
+        templateBadge.textContent = `${templateInfo.name || '-'} · ${sourceText} · file=${templateInfo.reference_key || '-'}`;
+        templateDescription.textContent = templateInfo.description || '';
+        templateCard.classList.remove('hidden');
+    }
+
+    function clearSubResultState() {
+        document.getElementById('sub-proxies-section').classList.add('hidden');
+        document.getElementById('sub-output-section').classList.add('hidden');
+        document.getElementById('sub-template-result').classList.add('hidden');
+        document.getElementById('sub-proxies-list').innerHTML = '';
+        document.getElementById('sub-proxies-count').textContent = '';
+        document.getElementById('sub-output-title').textContent = '订阅内容预览';
+        document.getElementById('sub-output-text').textContent = '';
+        document.getElementById('sub-link').textContent = '';
+        document.getElementById('sub-template-result-text').textContent = '';
+        document.getElementById('sub-line-numbers').innerHTML = '';
+        document.getElementById('sub-line-numbers').style.display = 'none';
+        currentSubContent = '';
+        currentSubscriptionLink = '';
+    }
+
+    async function convertSubscription() {
+        const payload = getSubPayloadFromInputs();
+        clearSubResultState();
+        document.getElementById('sub-error').classList.add('hidden');
+
+        if (!payload.subscription_url) {
+            showToast('请输入订阅链接');
+            return;
+        }
 
         const btn = document.getElementById('sub-convert-btn');
         btn.disabled = true;
@@ -3180,45 +3219,16 @@ ${preview.innerHTML}
             if (data.success) {
                 displaySubResult(data);
             } else {
+                clearSubResultState();
                 document.getElementById('sub-error').textContent = data.error || '转换失败';
                 document.getElementById('sub-error').classList.remove('hidden');
             }
         } catch (e) {
+            clearSubResultState();
             showToast('请求失败: ' + e.message);
         } finally {
             btn.disabled = false;
             btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg> 转换';
-        }
-    }
-
-    async function parseManualInput() {
-        const content = document.getElementById('sub-manual-input').value.trim();
-        if (!content) {
-            showToast('请输入订阅内容');
-            return;
-        }
-
-        const payload = {
-            ...getSubPayloadFromInputs(),
-            content
-        };
-
-        try {
-            const res = await fetch('/api/sub/convert', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            const data = await res.json();
-
-            if (data.success) {
-                displaySubResult(data);
-            } else {
-                document.getElementById('sub-error').textContent = data.error || '解析失败';
-                document.getElementById('sub-error').classList.remove('hidden');
-            }
-        } catch (e) {
-            showToast('请求失败: ' + e.message);
         }
     }
 
@@ -3253,6 +3263,8 @@ ${preview.innerHTML}
         const outputText = document.getElementById('sub-output-text');
         const outputTitle = document.getElementById('sub-output-title');
         const subLink = document.getElementById('sub-link');
+        const templateResult = document.getElementById('sub-template-result');
+        const templateResultText = document.getElementById('sub-template-result-text');
 
         outputSection.classList.remove('hidden');
 
@@ -3263,6 +3275,14 @@ ${preview.innerHTML}
         outputText.className = `hljs ${data.code_class || 'language-json'}`;
         outputText.textContent = currentSubContent;
         subLink.textContent = currentSubscriptionLink || '-';
+
+        if (data.template_info) {
+            templateResultText.textContent = formatTemplateBadgeText(data.template_info);
+            templateResult.classList.remove('hidden');
+        } else {
+            templateResultText.textContent = '';
+            templateResult.classList.add('hidden');
+        }
 
         if (typeof hljs !== 'undefined') {
             hljs.highlightElement(outputText);
@@ -3306,12 +3326,8 @@ ${preview.innerHTML}
 
     function clearSubInput() {
         document.getElementById('sub-url').value = '';
-        document.getElementById('sub-manual-input').value = '';
-        document.getElementById('sub-proxies-section').classList.add('hidden');
-        document.getElementById('sub-output-section').classList.add('hidden');
+        clearSubResultState();
         document.getElementById('sub-error').classList.add('hidden');
-        currentSubContent = '';
-        currentSubscriptionLink = '';
     }
 
     // ===== Utilities Tool Functions =====

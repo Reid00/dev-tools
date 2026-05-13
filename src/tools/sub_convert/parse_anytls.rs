@@ -77,7 +77,9 @@ pub fn parse_anytls(url: &str) -> Result<ProxyNode, String> {
 
     match node.transport {
         TransportType::Ws => node.transport_path = transport_path,
-        TransportType::Tcp | TransportType::Grpc | TransportType::Http => node.transport_path.clear(),
+        TransportType::Tcp | TransportType::Grpc | TransportType::Http => {
+            node.transport_path.clear()
+        }
     }
 
     Ok(node)
@@ -91,8 +93,8 @@ fn decode_component(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_anytls;
     use super::super::types::{ProxyProtocol, TransportType};
+    use super::parse_anytls;
 
     #[test]
     fn test_parse_anytls_ws_url() {

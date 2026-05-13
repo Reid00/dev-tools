@@ -8,8 +8,7 @@ const ANYTLS_WS_UNSUPPORTED: &str =
 const SSR_UNSUPPORTED: &str = "ShadowsocksR is not supported for sing-box output";
 
 pub fn node_to_singbox_outbound(node: &ProxyNode) -> Result<Value, String> {
-    if matches!(node.protocol, ProxyProtocol::Anytls)
-        && matches!(node.transport, TransportType::Ws)
+    if matches!(node.protocol, ProxyProtocol::Anytls) && matches!(node.transport, TransportType::Ws)
     {
         return Err(ANYTLS_WS_UNSUPPORTED.to_string());
     }
@@ -393,11 +392,7 @@ fn tls_json(node: &ProxyNode, force_enabled: bool) -> Option<Value> {
 }
 
 fn default_path(path: &str) -> &str {
-    if path.is_empty() {
-        "/"
-    } else {
-        path
-    }
+    if path.is_empty() { "/" } else { path }
 }
 
 #[cfg(test)]
@@ -426,7 +421,10 @@ mod tests {
         assert_eq!(tls_outbound["security"], "auto");
         assert_eq!(tls_outbound["transport"]["type"], "ws");
         assert_eq!(tls_outbound["transport"]["path"], "/ws");
-        assert_eq!(tls_outbound["transport"]["headers"]["Host"], "cdn.example.com");
+        assert_eq!(
+            tls_outbound["transport"]["headers"]["Host"],
+            "cdn.example.com"
+        );
         assert_eq!(tls_outbound["tls"]["server_name"], "tls.example.com");
         assert!(tls_outbound.get("network").is_none());
 
@@ -441,7 +439,12 @@ mod tests {
 
     #[test]
     fn test_vmess_outbound_prefers_explicit_method_for_security() {
-        let mut node = node(ProxyProtocol::Vmess, "vmess-method", "vmess.example.com", 443);
+        let mut node = node(
+            ProxyProtocol::Vmess,
+            "vmess-method",
+            "vmess.example.com",
+            443,
+        );
         node.uuid = "99999999-9999-9999-9999-999999999999".to_string();
         node.method = "aes-128-gcm".to_string();
 
@@ -473,7 +476,10 @@ mod tests {
         assert_eq!(outbound["flow"], "xtls-rprx-vision");
         assert_eq!(outbound["transport"]["type"], "ws");
         assert_eq!(outbound["transport"]["path"], "/vless");
-        assert_eq!(outbound["transport"]["headers"]["Host"], "cdn.vless.example.com");
+        assert_eq!(
+            outbound["transport"]["headers"]["Host"],
+            "cdn.vless.example.com"
+        );
         assert_eq!(outbound["tls"]["server_name"], "tls.vless.example.com");
         assert_eq!(outbound["tls"]["utls"]["fingerprint"], "chrome");
         assert_eq!(outbound["tls"]["alpn"][0], "h2");
@@ -485,7 +491,12 @@ mod tests {
 
     #[test]
     fn test_trojan_outbound_preserves_grpc_tls_fields_without_network() {
-        let mut node = node(ProxyProtocol::Trojan, "trojan-node", "trojan.example.com", 443);
+        let mut node = node(
+            ProxyProtocol::Trojan,
+            "trojan-node",
+            "trojan.example.com",
+            443,
+        );
         node.password = "secret".to_string();
         node.transport = TransportType::Grpc;
         node.transport_service = "grpc-service".to_string();
@@ -507,7 +518,12 @@ mod tests {
 
     #[test]
     fn test_ss_and_ssr_outbounds_preserve_protocol_specific_fields() {
-        let mut ss = node(ProxyProtocol::Shadowsocks, "ss-node", "ss.example.com", 8388);
+        let mut ss = node(
+            ProxyProtocol::Shadowsocks,
+            "ss-node",
+            "ss.example.com",
+            8388,
+        );
         ss.method = "aes-256-gcm".to_string();
         ss.password = "ss-pass".to_string();
         ss.ss_plugin = "v2ray-plugin".to_string();
@@ -516,9 +532,17 @@ mod tests {
         let ss_outbound = node_to_singbox_outbound(&ss).unwrap();
         assert_eq!(ss_outbound["type"], "shadowsocks");
         assert_eq!(ss_outbound["plugin"], "v2ray-plugin");
-        assert_eq!(ss_outbound["plugin_opts"], "mode=websocket;host=cdn.example.com");
+        assert_eq!(
+            ss_outbound["plugin_opts"],
+            "mode=websocket;host=cdn.example.com"
+        );
 
-        let mut ssr = node(ProxyProtocol::ShadowsocksR, "ssr-node", "ssr.example.com", 9443);
+        let mut ssr = node(
+            ProxyProtocol::ShadowsocksR,
+            "ssr-node",
+            "ssr.example.com",
+            9443,
+        );
         ssr.method = "aes-256-cfb".to_string();
         ssr.password = "ssr-pass".to_string();
         ssr.ssr_protocol = "auth_sha1_v4".to_string();
@@ -532,7 +556,12 @@ mod tests {
 
     #[test]
     fn test_hysteria2_outbound_preserves_obfs_and_bandwidth_fields() {
-        let mut node = node(ProxyProtocol::Hysteria2, "hy2-node", "hy2.example.com", 8443);
+        let mut node = node(
+            ProxyProtocol::Hysteria2,
+            "hy2-node",
+            "hy2.example.com",
+            8443,
+        );
         node.password = "hy2-pass".to_string();
         node.tls_enabled = true;
         node.tls_sni = "peer.example.com".to_string();
@@ -564,8 +593,14 @@ mod tests {
 
         let config = generate_singbox_config(&[node], true, true, false).unwrap();
         let outbounds = config["outbounds"].as_array().unwrap();
-        let selector = outbounds.iter().find(|item| item["tag"] == "proxy").unwrap();
-        let direct = outbounds.iter().find(|item| item["tag"] == "direct").unwrap();
+        let selector = outbounds
+            .iter()
+            .find(|item| item["tag"] == "proxy")
+            .unwrap();
+        let direct = outbounds
+            .iter()
+            .find(|item| item["tag"] == "direct")
+            .unwrap();
 
         assert_eq!(config["inbounds"][0]["type"], "mixed");
         assert_eq!(selector["type"], "selector");
@@ -594,7 +629,10 @@ mod tests {
 
         let config = generate_singbox_config(&[first, second, third], false, false, false).unwrap();
         let outbounds = config["outbounds"].as_array().unwrap();
-        let selector = outbounds.iter().find(|item| item["tag"] == "proxy").unwrap();
+        let selector = outbounds
+            .iter()
+            .find(|item| item["tag"] == "proxy")
+            .unwrap();
 
         let proxy_tags = outbounds
             .iter()
@@ -605,7 +643,11 @@ mod tests {
 
         assert_eq!(proxy_tags.len(), 3);
         assert!(proxy_tags.iter().all(|tag| !tag.trim().is_empty()));
-        assert!(proxy_tags.iter().all(|tag| tag != "proxy" && tag != "direct"));
+        assert!(
+            proxy_tags
+                .iter()
+                .all(|tag| tag != "proxy" && tag != "direct")
+        );
 
         let unique = proxy_tags.iter().collect::<std::collections::HashSet<_>>();
         assert_eq!(unique.len(), proxy_tags.len());
@@ -615,7 +657,12 @@ mod tests {
 
     #[test]
     fn test_generate_singbox_config_rejects_anytls_websocket_transport() {
-        let mut node = node(ProxyProtocol::Anytls, "anytls-ws", "anytls.example.com", 443);
+        let mut node = node(
+            ProxyProtocol::Anytls,
+            "anytls-ws",
+            "anytls.example.com",
+            443,
+        );
         node.password = "secret".to_string();
         node.transport = TransportType::Ws;
         node.transport_path = "/ws".to_string();
@@ -624,6 +671,9 @@ mod tests {
         node.tls_sni = "tls.anytls.example.com".to_string();
 
         let err = generate_singbox_config(&[node], false, false, false).unwrap_err();
-        assert_eq!(err, "AnyTLS websocket transport is not supported for sing-box output");
+        assert_eq!(
+            err,
+            "AnyTLS websocket transport is not supported for sing-box output"
+        );
     }
 }

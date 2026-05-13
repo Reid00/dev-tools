@@ -111,8 +111,8 @@ fn decode_component(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_trojan;
     use super::super::types::{ProxyProtocol, TransportType};
+    use super::parse_trojan;
 
     #[test]
     fn test_parse_trojan_basic() {
@@ -155,7 +155,8 @@ mod tests {
 
     #[test]
     fn test_parse_trojan_ws() {
-        let url = "trojan://secret@ws.example.com:443?type=ws&host=cdn.example.com&path=%2Fws#Ws%20Node";
+        let url =
+            "trojan://secret@ws.example.com:443?type=ws&host=cdn.example.com&path=%2Fws#Ws%20Node";
 
         let node = parse_trojan(url).unwrap();
 

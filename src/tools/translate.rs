@@ -250,7 +250,8 @@ fn percent_encode_alibaba(value: &str) -> String {
 }
 
 fn canonical_query_string(query: &BTreeMap<String, String>) -> String {
-    query.iter()
+    query
+        .iter()
         .map(|(key, value)| {
             format!(
                 "{}={}",
@@ -593,10 +594,12 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
-        assert!(json["error"]
-            .as_str()
-            .unwrap()
-            .contains("Alibaba Cloud credentials are not configured"));
+        assert!(
+            json["error"]
+                .as_str()
+                .unwrap()
+                .contains("Alibaba Cloud credentials are not configured")
+        );
     }
 
     #[tokio::test]
@@ -768,19 +771,40 @@ mod tests {
             "nonce-123",
         );
 
-        assert_eq!(query.get("Action").map(String::as_str), Some("TranslateGeneral"));
+        assert_eq!(
+            query.get("Action").map(String::as_str),
+            Some("TranslateGeneral")
+        );
         assert_eq!(query.get("Version").map(String::as_str), Some("2018-10-12"));
         assert_eq!(query.get("Format").map(String::as_str), Some("JSON"));
         assert_eq!(query.get("FormatType").map(String::as_str), Some("text"));
         assert_eq!(query.get("Scene").map(String::as_str), Some("general"));
         assert_eq!(query.get("SourceLanguage").map(String::as_str), Some("en"));
         assert_eq!(query.get("TargetLanguage").map(String::as_str), Some("zh"));
-        assert_eq!(query.get("SourceText").map(String::as_str), Some("hello world"));
-        assert_eq!(query.get("AccessKeyId").map(String::as_str), Some("test-access-key"));
-        assert_eq!(query.get("SignatureMethod").map(String::as_str), Some("HMAC-SHA1"));
-        assert_eq!(query.get("SignatureVersion").map(String::as_str), Some("1.0"));
-        assert_eq!(query.get("SignatureNonce").map(String::as_str), Some("nonce-123"));
-        assert_eq!(query.get("Timestamp").map(String::as_str), Some("2026-05-07T10:00:00Z"));
+        assert_eq!(
+            query.get("SourceText").map(String::as_str),
+            Some("hello world")
+        );
+        assert_eq!(
+            query.get("AccessKeyId").map(String::as_str),
+            Some("test-access-key")
+        );
+        assert_eq!(
+            query.get("SignatureMethod").map(String::as_str),
+            Some("HMAC-SHA1")
+        );
+        assert_eq!(
+            query.get("SignatureVersion").map(String::as_str),
+            Some("1.0")
+        );
+        assert_eq!(
+            query.get("SignatureNonce").map(String::as_str),
+            Some("nonce-123")
+        );
+        assert_eq!(
+            query.get("Timestamp").map(String::as_str),
+            Some("2026-05-07T10:00:00Z")
+        );
     }
 
     #[test]

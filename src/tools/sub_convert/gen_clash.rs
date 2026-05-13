@@ -143,7 +143,10 @@ pub fn generate_clash_yaml(
     include_dns: bool,
 ) -> Result<String, String> {
     let clash_proxies = nodes.iter().map(node_to_clash_entry).collect::<Vec<_>>();
-    let proxy_names = nodes.iter().map(|node| node.name.clone()).collect::<Vec<_>>();
+    let proxy_names = nodes
+        .iter()
+        .map(|node| node.name.clone())
+        .collect::<Vec<_>>();
 
     let mut proxy_group_outbounds = vec![Value::String("auto".to_string())];
     if include_direct {
@@ -223,11 +226,7 @@ fn transport_type_str(transport: &TransportType) -> &'static str {
 }
 
 fn default_path(path: &str) -> &str {
-    if path.is_empty() {
-        "/"
-    } else {
-        path
-    }
+    if path.is_empty() { "/" } else { path }
 }
 
 #[cfg(test)]
@@ -260,7 +259,10 @@ mod tests {
         };
         let custom_method_entry = node_to_clash_entry(&custom_method_node);
         let custom_method_map = custom_method_entry.as_mapping().unwrap();
-        assert_eq!(custom_method_map.get(sy("cipher")), Some(&sy("aes-128-gcm")));
+        assert_eq!(
+            custom_method_map.get(sy("cipher")),
+            Some(&sy("aes-128-gcm"))
+        );
     }
 
     #[test]

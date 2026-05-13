@@ -123,7 +123,10 @@ fn get_required_u16(proxy: &Mapping, key: &str, error: &str) -> Result<u16, Stri
 }
 
 fn get_bool(proxy: &Mapping, key: &str) -> bool {
-    proxy.get(key).and_then(|value| value.as_bool()).unwrap_or(false)
+    proxy
+        .get(key)
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false)
 }
 
 fn get_transport(proxy: &Mapping) -> TransportType {
@@ -193,7 +196,10 @@ fn get_grpc_service(proxy: &Mapping) -> String {
 }
 
 fn get_reality_opts(proxy: &Mapping) -> (bool, String, String) {
-    let Some(reality_opts) = proxy.get("reality-opts").and_then(|value| value.as_mapping()) else {
+    let Some(reality_opts) = proxy
+        .get("reality-opts")
+        .and_then(|value| value.as_mapping())
+    else {
         return (false, String::new(), String::new());
     };
 
@@ -357,7 +363,12 @@ fn parse_clash_ss(proxy: &Mapping, name: &str) -> Result<ProxyNode, String> {
     Ok(node)
 }
 
-fn parse_clash_hysteria2(proxy: &Mapping, name: &str, server: &str, port: u16) -> Option<ProxyNode> {
+fn parse_clash_hysteria2(
+    proxy: &Mapping,
+    name: &str,
+    server: &str,
+    port: u16,
+) -> Option<ProxyNode> {
     let password = get_str(proxy, "password")?;
     let mut node = ProxyNode::default_with(ProxyProtocol::Hysteria2, name, server, port);
     node.password = password.to_string();
@@ -423,8 +434,8 @@ fn parse_clash_anytls(proxy: &Mapping, name: &str, server: &str, port: u16) -> O
 
 #[cfg(test)]
 mod tests {
-    use super::parse_clash_yaml;
     use super::super::types::{ProxyProtocol, TransportType};
+    use super::parse_clash_yaml;
 
     #[test]
     fn test_parse_clash_vmess_ws_tls_preserves_transport_and_tls_fields() {

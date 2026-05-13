@@ -1,46 +1,54 @@
-pub mod types;
-pub mod parse_vmess;
-pub mod parse_vless;
-pub mod parse_trojan;
+pub mod gen_clash;
+pub mod gen_singbox;
+pub mod gen_subscription;
+pub mod generator;
+pub mod parse_anytls;
+pub mod parse_clash;
+pub mod parse_hysteria2;
 pub mod parse_ss;
 pub mod parse_ssr;
-pub mod parse_hysteria2;
-pub mod parse_anytls;
+pub mod parse_trojan;
+pub mod parse_vless;
+pub mod parse_vmess;
 pub mod parser;
-pub mod gen_subscription;
-pub mod gen_singbox;
-pub mod gen_clash;
-pub mod generator;
-pub mod parse_clash;
-pub mod token;
+pub mod publish;
+pub mod render;
 pub mod runtime;
+pub mod source;
+pub mod template;
+pub mod types;
 
 use axum::{
     Json, Router,
-    extract::{Path, Query},
+    extract::{OriginalUri, Path},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::IntoResponse,
     routing::{get, post},
 };
-use base64::{Engine as _, engine::general_purpose::STANDARD};
 use generator::{ProxyInfo, TargetFormat};
+#[cfg(test)]
 use runtime::*;
 use serde::{Deserialize, Serialize};
-use token::{build_token_subscription_path, get_token_entry};
-use urlencoding::encode;
+
+const JSON_CONTENT_TYPE: &str = "application/json; charset=utf-8";
+const JSON_CODE_CLASS: &str = "language-json";
 
 #[derive(Deserialize)]
 pub struct ConvertRequest {
+    pub subscription_url: String,
     #[serde(default)]
-    pub subscription_url: Option<String>,
+    pub template: Option<String>,
     #[serde(default)]
-    pub content: Option<String>,
-    #[serde(default)]
-    pub format: TargetFormat,
-    #[serde(default)]
-    pub include_direct: bool,
-    #[serde(default)]
-    pub include_dns: bool,
+    pub file: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct TemplateInfoResponse {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub reference_value: String,
+    pub source: String,
 }
 
 #[derive(Serialize)]
@@ -53,314 +61,143 @@ pub struct ConvertResponse {
     pub format: Option<String>,
     pub proxies: Vec<ProxyInfo>,
     pub outbounds_count: usize,
+    pub template_info: Option<TemplateInfoResponse>,
     pub error: Option<String>,
 }
 
-#[derive(Deserialize)]
-pub struct SubscribeQuery {
-    pub source: String,
-    #[serde(default)]
-    pub format: TargetFormat,
-    #[serde(default)]
-    pub include_direct: bool,
-    #[serde(default)]
-    pub include_dns: bool,
+pub async fn list_templates() -> Json<Vec<template::TemplateDescriptor>> {
+    Json(template::builtin_templates())
 }
 
-async fn subscribe_by_token(Path(id): Path<String>) -> impl IntoResponse {
-    let entry = match get_token_entry(&id) {
-        Ok(Some(entry)) => entry,
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                "Subscription link expired or invalid",
-            )
-                .into_response();
-        }
-        Err(e) => {
-            return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response();
-        }
-    };
-
-    let allow_passthrough = matches!(entry.format, TargetFormat::Subscription | TargetFormat::V2ray)
-        && decode_base64_to_string(entry.content.trim())
-            .map(|decoded| !extract_raw_proxy_urls(decoded.trim()).is_empty())
-            .unwrap_or(false);
-
-    let result = match build_passthrough_or_generated_output(
-        &entry.content,
-        &entry.format,
-        entry.include_direct,
-        entry.include_dns,
-        allow_passthrough,
-    ) {
-        Ok(result) => result,
-        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
-    };
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_str(entry.format.content_type())
-            .unwrap_or(HeaderValue::from_static("text/plain; charset=utf-8")),
-    );
-
-    (StatusCode::OK, headers, result.content).into_response()
+async fn convert_subscription(Json(req): Json<ConvertRequest>) -> Json<ConvertResponse> {
+    match convert_subscription_inner(req).await {
+        Ok(response) => Json(response),
+        Err(error) => Json(error_response(error)),
+    }
 }
 
-fn build_passthrough_or_generated_output(
-    content: &str,
-    format: &TargetFormat,
-    include_direct: bool,
-    include_dns: bool,
-    allow_passthrough: bool,
-) -> Result<generator::GenerateResult, String> {
-    let nodes = parser::parse_subscription_content(content)?;
+async fn convert_subscription_inner(req: ConvertRequest) -> Result<ConvertResponse, String> {
+    let subscription_url = source::validate_subscription_input(&req.subscription_url)?;
+    let resolved_template =
+        template::resolve_template(req.template.as_deref(), req.file.as_deref())?;
+    let template_text = template::load_template_text(&resolved_template).await?;
+    let source_content =
+        runtime::fetch_subscription(&subscription_url, &TargetFormat::Singbox).await?;
+    let nodes = parser::parse_subscription_content(&source_content)?;
     if nodes.is_empty() {
         return Err("No valid proxy URLs found".to_string());
     }
 
-    if allow_passthrough {
-        match format {
-            TargetFormat::Subscription | TargetFormat::V2ray => {
-                let trimmed = content.trim();
-                if let Some((raw_content, proxy_lines)) = passthrough_proxy_content(trimmed, format) {
-                    if passthrough_matches_parsed_nodes(&proxy_lines, &nodes) {
-                        return Ok(build_passthrough_result(raw_content, &nodes, proxy_lines.len()));
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
+    let rendered = render::render_template(&template_text, &nodes)?;
+    let preview_content = serde_json::to_string_pretty(&rendered)
+        .map_err(|error| format!("Failed to serialize rendered config: {error}"))?;
+    let outbounds_count = rendered["outbounds"]
+        .as_array()
+        .map(|outbounds| outbounds.len())
+        .unwrap_or(0);
+    let proxies = proxy_info_from_nodes(&nodes);
+    let template_info = template_info_response(&resolved_template);
+    let subscription_path =
+        publish::build_config_path(&subscription_url, &resolved_template.reference_value);
 
-    generator::generate_output(&nodes, format, include_direct, include_dns)
-}
-
-fn passthrough_matches_parsed_nodes(raw_proxy_lines: &[String], nodes: &[types::ProxyNode]) -> bool {
-    if raw_proxy_lines.len() != nodes.len() {
-        return false;
-    }
-
-    let raw_set = raw_proxy_lines
-        .iter()
-        .map(|line| line.trim().to_string())
-        .filter(|line| !line.is_empty())
-        .collect::<std::collections::HashSet<_>>();
-    let parsed_set = nodes
-        .iter()
-        .map(gen_subscription::node_to_uri)
-        .collect::<std::collections::HashSet<_>>();
-
-    raw_set == parsed_set
-}
-
-fn build_passthrough_result(
-    raw_content: String,
-    nodes: &[types::ProxyNode],
-    outbounds_count: usize,
-) -> generator::GenerateResult {
-    generator::GenerateResult {
-        content: raw_content,
-        proxy_info: nodes
-            .iter()
-            .map(|node| generator::ProxyInfo {
-                name: node.name.clone(),
-                server: node.server.clone(),
-                port: node.port,
-                protocol: node.protocol.protocol_str().to_string(),
-            })
-            .collect(),
-        outbounds_count,
-    }
-}
-
-fn build_subscription_path(source: &str, req: &ConvertRequest, content: &str) -> Option<String> {
-    if source.starts_with("raw:") {
-        return build_token_subscription_path(content, &req.format, req.include_direct, req.include_dns)
-            .ok();
-    }
-
-    Some(format!(
-        "/api/sub/subscribe?source={}&format={}&include_direct={}&include_dns={}",
-        encode(source),
-        req.format.as_str(),
-        req.include_direct,
-        req.include_dns
-    ))
-}
-
-fn passthrough_proxy_content(content: &str, format: &TargetFormat) -> Option<(String, Vec<String>)> {
-    let raw_urls = extract_raw_proxy_urls(content);
-    if !raw_urls.is_empty() {
-        return Some((
-            if matches!(format, TargetFormat::Subscription) {
-                content.to_string()
-            } else {
-                raw_urls.join("\n")
-            },
-            raw_urls,
-        ));
-    }
-
-    let decoded = decode_base64_to_string(content)?;
-    let decoded_trimmed = decoded.trim();
-    let decoded_urls = extract_raw_proxy_urls(decoded_trimmed);
-    if decoded_urls.is_empty() {
-        return None;
-    }
-
-    Some((
-        if matches!(format, TargetFormat::Subscription) {
-            content.to_string()
-        } else {
-            decoded_urls.join("\n")
-        },
-        decoded_urls,
-    ))
-}
-
-fn extract_raw_proxy_urls(content: &str) -> Vec<String> {
-    content
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty())
-        .filter(|line| {
-            line.starts_with("vmess://")
-                || line.starts_with("vless://")
-                || line.starts_with("trojan://")
-                || line.starts_with("ss://")
-                || line.starts_with("ssr://")
-                || line.starts_with("hysteria2://")
-                || line.starts_with("hy2://")
-                || line.starts_with("anytls://")
-        })
-        .map(ToString::to_string)
-        .collect()
-}
-
-fn decode_base64_to_string(input: &str) -> Option<String> {
-    let input: String = input.chars().filter(|c| !c.is_whitespace()).collect();
-    let input = input.replace('-', "+").replace('_', "/");
-    let padding = (4 - input.len() % 4) % 4;
-    let input = input + &"=".repeat(padding);
-
-    STANDARD
-        .decode(input)
-        .ok()
-        .and_then(|bytes| String::from_utf8(bytes).ok())
-}
-
-async fn convert_subscription(Json(req): Json<ConvertRequest>) -> Json<ConvertResponse> {
-    let source = match source_from_request(&req) {
-        Ok(source) => source,
-        Err(e) => {
-            return Json(ConvertResponse {
-                success: false,
-                subscription_path: None,
-                preview_content: None,
-                content_type: None,
-                code_class: None,
-                format: None,
-                proxies: vec![],
-                outbounds_count: 0,
-                error: Some(e),
-            });
-        }
-    };
-
-    let content = match parse_source_async(&source, &req.format).await {
-        Ok(content) => content,
-        Err(e) => {
-            return Json(ConvertResponse {
-                success: false,
-                subscription_path: None,
-                preview_content: None,
-                content_type: None,
-                code_class: None,
-                format: None,
-                proxies: vec![],
-                outbounds_count: 0,
-                error: Some(e),
-            });
-        }
-    };
-
-    let result = match build_passthrough_or_generated_output(
-        &content,
-        &req.format,
-        req.include_direct,
-        req.include_dns,
-        false,
-    ) {
-        Ok(result) => result,
-        Err(e) => {
-            return Json(ConvertResponse {
-                success: false,
-                subscription_path: None,
-                preview_content: None,
-                content_type: None,
-                code_class: None,
-                format: None,
-                proxies: vec![],
-                outbounds_count: 0,
-                error: Some(e),
-            });
-        }
-    };
-
-    let subscription_path = build_subscription_path(&source, &req, &content);
-
-    Json(ConvertResponse {
+    Ok(ConvertResponse {
         success: true,
-        subscription_path,
-        preview_content: Some(result.content),
-        content_type: Some(req.format.content_type().to_string()),
-        code_class: Some(req.format.code_class().to_string()),
-        format: Some(req.format.as_str().to_string()),
-        proxies: result.proxy_info,
-        outbounds_count: result.outbounds_count,
+        subscription_path: Some(subscription_path),
+        preview_content: Some(preview_content),
+        content_type: Some(JSON_CONTENT_TYPE.to_string()),
+        code_class: Some(JSON_CODE_CLASS.to_string()),
+        format: Some(TargetFormat::Singbox.as_str().to_string()),
+        proxies,
+        outbounds_count,
+        template_info: Some(template_info),
         error: None,
     })
 }
 
-async fn subscribe(Query(req): Query<SubscribeQuery>) -> impl IntoResponse {
-    let source = match sanitize_source(&req.source) {
-        Ok(source) => source,
-        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
+async fn config(
+    Path(raw_source): Path<String>,
+    OriginalUri(uri): OriginalUri,
+) -> impl IntoResponse {
+    match config_inner(raw_source, uri.query()).await {
+        Ok(body) => {
+            let mut headers = HeaderMap::new();
+            headers.insert(
+                header::CONTENT_TYPE,
+                HeaderValue::from_static(JSON_CONTENT_TYPE),
+            );
+            (StatusCode::OK, headers, body).into_response()
+        }
+        Err(error) => (StatusCode::BAD_REQUEST, error).into_response(),
+    }
+}
+
+async fn config_inner(raw_source: String, query: Option<&str>) -> Result<String, String> {
+    let raw_source = match query {
+        Some(query) if !query.is_empty() => format!("{raw_source}?{query}"),
+        _ => raw_source,
     };
+    let parsed_source = source::split_config_source_and_query(&raw_source)?;
+    let resolved_template = template::resolve_template(None, parsed_source.file.as_deref())?;
+    let template_text = template::load_template_text(&resolved_template).await?;
+    let source_content =
+        runtime::fetch_subscription(&parsed_source.subscription_url, &TargetFormat::Singbox)
+            .await?;
+    let nodes = parser::parse_subscription_content(&source_content)?;
+    if nodes.is_empty() {
+        return Err("No valid proxy URLs found".to_string());
+    }
 
-    let content = match parse_source_async(&source, &req.format).await {
-        Ok(content) => content,
-        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
-    };
+    let rendered = render::render_template(&template_text, &nodes)?;
+    serde_json::to_string_pretty(&rendered)
+        .map_err(|error| format!("Failed to serialize rendered config: {error}"))
+}
 
-    let result = match build_passthrough_or_generated_output(
-        &content,
-        &req.format,
-        req.include_direct,
-        req.include_dns,
-        true,
-    ) {
-        Ok(result) => result,
-        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
-    };
+fn proxy_info_from_nodes(nodes: &[types::ProxyNode]) -> Vec<ProxyInfo> {
+    nodes
+        .iter()
+        .map(|node| generator::ProxyInfo {
+            name: node.name.clone(),
+            server: node.server.clone(),
+            port: node.port,
+            protocol: node.protocol.protocol_str().to_string(),
+        })
+        .collect()
+}
 
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        header::CONTENT_TYPE,
-        HeaderValue::from_str(req.format.content_type())
-            .unwrap_or(HeaderValue::from_static("text/plain; charset=utf-8")),
-    );
+fn template_info_response(resolved_template: &template::ResolvedTemplate) -> TemplateInfoResponse {
+    TemplateInfoResponse {
+        id: resolved_template.descriptor.id.to_string(),
+        name: resolved_template.descriptor.name.to_string(),
+        description: resolved_template.descriptor.description.to_string(),
+        reference_value: resolved_template.reference_value.clone(),
+        source: match resolved_template.content_type {
+            template::TemplateSource::Builtin => "builtin",
+            template::TemplateSource::Remote => "remote",
+        }
+        .to_string(),
+    }
+}
 
-    (StatusCode::OK, headers, result.content).into_response()
+fn error_response(error: String) -> ConvertResponse {
+    ConvertResponse {
+        success: false,
+        subscription_path: None,
+        preview_content: None,
+        content_type: Some(JSON_CONTENT_TYPE.to_string()),
+        code_class: Some(JSON_CODE_CLASS.to_string()),
+        format: Some(TargetFormat::Singbox.as_str().to_string()),
+        proxies: Vec::new(),
+        outbounds_count: 0,
+        template_info: None,
+        error: Some(error),
+    }
 }
 
 pub fn router() -> Router {
     Router::new()
+        .route("/templates", get(list_templates))
         .route("/convert", post(convert_subscription))
-        .route("/subscribe", get(subscribe))
-        .route("/subscribe/{id}", get(subscribe_by_token))
+        .route("/config/{*source}", get(config))
 }
 
 #[cfg(test)]
@@ -368,11 +205,11 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
-    use base64::engine::general_purpose::STANDARD;
+    use base64::{Engine as _, engine::general_purpose::STANDARD};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
-    async fn post_convert(body: serde_json::Value) -> (StatusCode, serde_json::Value) {
+    async fn post_convert_raw(body: serde_json::Value) -> (StatusCode, String) {
         let app = router();
         let req = Request::builder()
             .method("POST")
@@ -383,11 +220,16 @@ mod tests {
         let resp = app.oneshot(req).await.unwrap();
         let status = resp.status();
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
-        let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        (status, String::from_utf8_lossy(&bytes).to_string())
+    }
+
+    async fn post_convert(body: serde_json::Value) -> (StatusCode, serde_json::Value) {
+        let (status, body) = post_convert_raw(body).await;
+        let json: serde_json::Value = serde_json::from_str(&body).unwrap();
         (status, json)
     }
 
-    async fn get_subscribe(uri: &str) -> (StatusCode, String, Option<String>) {
+    async fn get_route(uri: &str) -> (StatusCode, String, Option<String>) {
         let app = router();
         let req = Request::builder()
             .method("GET")
@@ -406,12 +248,57 @@ mod tests {
         (status, body, content_type)
     }
 
+    #[tokio::test]
+    async fn test_templates_route_returns_builtin_descriptors() {
+        let (status, body, content_type) = get_route("/templates").await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(
+            content_type
+                .unwrap_or_default()
+                .starts_with("application/json")
+        );
+        let templates: serde_json::Value = serde_json::from_str(&body).unwrap();
+        let templates = templates.as_array().unwrap();
+        assert!(
+            templates
+                .iter()
+                .any(|template| template["id"] == "sb-config-1.14")
+        );
+        assert!(
+            templates
+                .iter()
+                .all(|template| template["source"] == "builtin")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_convert_rejects_missing_subscription_url() {
+        let (status, body) = post_convert_raw(serde_json::json!({
+            "template": "sb-config-1.14"
+        }))
+        .await;
+
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(body.contains("subscription_url") || body.contains("missing field"));
+    }
+
+    #[tokio::test]
+    async fn test_config_route_with_url_and_file_is_registered() {
+        let (status, body, _) =
+            get_route("/config/https://example.com/sub?token=abc&file=sb-config-1.14").await;
+
+        assert_ne!(status, StatusCode::NOT_FOUND);
+        assert!(body.contains("HTTP error") || body.contains("Failed to fetch subscription"));
+    }
+
     const SAMPLE_SUB: &str = "vmess://eyJ2IjoiMiIsInBzIjoiVGVzdC1WbWVzcyIsImFkZCI6ImV4YW1wbGUuY29tIiwicG9ydCI6IjQ0MyIsImlkIjoiNzQwNjYwYjktYmQxMi00NWE2LTk2MGYtNmI0N2RkNGNiZTY2IiwiYWlkIjoiMCIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiZXhhbXBsZS5jb20iLCJwYXRoIjoiLyIsInRscyI6InRscyJ9";
 
     #[test]
     fn test_parse_ss_adapter_uses_shared_parser() {
         let userinfo = STANDARD.encode("aes-256-gcm:secret");
-        let outbound = parse_ss(&format!("ss://{}@example.com:8388#Shared%20SS", userinfo)).unwrap();
+        let outbound =
+            parse_ss(&format!("ss://{}@example.com:8388#Shared%20SS", userinfo)).unwrap();
 
         assert_eq!(outbound["type"], "shadowsocks");
         assert_eq!(outbound["tag"], "Shared SS");
@@ -433,7 +320,10 @@ mod tests {
         assert_eq!(outbound["type"], "shadowsocks");
         assert_eq!(outbound["tag"], "Plugin SS");
         assert_eq!(outbound["plugin"], "v2ray-plugin");
-        assert_eq!(outbound["plugin_opts"], "mode=websocket;host=cdn.example.com");
+        assert_eq!(
+            outbound["plugin_opts"],
+            "mode=websocket;host=cdn.example.com"
+        );
     }
 
     #[test]
@@ -493,32 +383,6 @@ mod tests {
         assert!(err.contains("Invalid SSR port"));
     }
 
-    #[tokio::test]
-    async fn test_convert_subscription_surfaces_invalid_ssr_parse_error() {
-        let password = STANDARD.encode("secret-pass");
-        let remarks = STANDARD.encode("Bad SSR");
-        let decoded = format!(
-            "ssr.example.com:notaport:origin:aes-256-cfb:plain:{}//?remarks={}",
-            password, remarks
-        );
-        let url = format!("ssr://{}", STANDARD.encode(decoded));
-
-        let (status, body) = post_convert(serde_json::json!({
-            "content": url,
-            "format": "singbox"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], false);
-        assert_eq!(body["outbounds_count"], 0);
-        assert_eq!(body["proxies"].as_array().unwrap().len(), 0);
-        assert!(body["error"]
-            .as_str()
-            .unwrap()
-            .contains("Invalid SSR port"));
-    }
-
     #[test]
     fn test_generate_clash_yaml_retains_ssr_fields() {
         let password = STANDARD.encode("secret-pass");
@@ -541,7 +405,10 @@ mod tests {
         assert_eq!(proxy["protocol"].as_str().unwrap(), "auth_sha1_v4");
         assert_eq!(proxy["protocol-param"].as_str().unwrap(), "proto-param");
         assert_eq!(proxy["obfs"].as_str().unwrap(), "tls1.2_ticket_auth");
-        assert_eq!(proxy["obfs-param"].as_str().unwrap(), "obfs-host.example.com");
+        assert_eq!(
+            proxy["obfs-param"].as_str().unwrap(),
+            "obfs-host.example.com"
+        );
     }
 
     #[test]
@@ -561,7 +428,10 @@ mod tests {
             .unwrap();
 
         assert_eq!(outbound["plugin"], "v2ray-plugin");
-        assert_eq!(outbound["plugin_opts"], "mode=websocket;host=cdn.example.com");
+        assert_eq!(
+            outbound["plugin_opts"],
+            "mode=websocket;host=cdn.example.com"
+        );
     }
 
     #[test]
@@ -689,490 +559,11 @@ mod tests {
         assert_eq!(outbound["alter_id"].as_u64().unwrap(), 7);
         assert_eq!(outbound["transport"]["type"], "ws");
         assert_eq!(outbound["transport"]["path"], "/numeric");
-        assert_eq!(outbound["transport"]["headers"]["Host"], "cdn.numeric.example.com");
+        assert_eq!(
+            outbound["transport"]["headers"]["Host"],
+            "cdn.numeric.example.com"
+        );
         assert_eq!(outbound["tls"]["server_name"], "cdn.numeric.example.com");
-    }
-
-    #[tokio::test]
-    async fn test_convert_subscription_format_preview_is_base64_uri_list() {
-        let body = serde_json::json!({
-            "content": SAMPLE_SUB,
-            "format": "subscription",
-            "include_direct": false,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-        assert_eq!(json["format"], "subscription");
-
-        let preview = json["preview_content"].as_str().unwrap().trim();
-        let decoded = STANDARD.decode(preview).unwrap();
-        let decoded_text = String::from_utf8(decoded).unwrap();
-        assert!(
-            decoded_text.contains("vmess://")
-                || decoded_text.contains("vless://")
-                || decoded_text.contains("trojan://")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_convert_singbox_format_preview_uses_selector_without_urltest() {
-        let body = serde_json::json!({
-            "content": SAMPLE_SUB,
-            "format": "singbox",
-            "include_direct": false,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-        assert_eq!(json["format"], "singbox");
-
-        let preview = json["preview_content"].as_str().unwrap();
-        let config: serde_json::Value = serde_json::from_str(preview).unwrap();
-        assert!(config["outbounds"].is_array());
-        assert!(config["inbounds"].is_array());
-
-        let outbounds = config["outbounds"].as_array().unwrap();
-        let selector = outbounds
-            .iter()
-            .find(|outbound| outbound["type"] == "selector")
-            .unwrap();
-        assert_eq!(selector["tag"], "proxy");
-        assert!(selector["default"].is_string());
-        assert!(outbounds.iter().all(|outbound| outbound["type"] != "urltest"));
-    }
-
-    #[tokio::test]
-    async fn test_convert_hiddify_safe_filters_out_unsupported_protocols() {
-        let body = serde_json::json!({
-            "content": concat!(
-                "vmess://eyJ2IjoiMiIsInBzIjoiVGVzdC1WbWVzcyIsImFkZCI6ImV4YW1wbGUuY29tIiwicG9ydCI6IjQ0MyIsImlkIjoiNzQwNjYwYjktYmQxMi00NWE2LTk2MGYtNmI0N2RkNGNiZTY2IiwiYWlkIjoiMCIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiZXhhbXBsZS5jb20iLCJwYXRoIjoiLyIsInRscyI6InRscyJ9\n",
-                "trojan://secret@trojan.example.com:443#Trojan%20Node\n",
-                "vmess://eyJ2IjoiMiIsInBzIjoiUGxhaW4gVk1lc3MiLCJhZGQiOiJwbGFpbi5leGFtcGxlLmNvbSIsInBvcnQiOiI4MCIsImlkIjoiMTIzNDU2NzgtMTIzNC0xMjM0LTEyMzQtMTIzNDU2Nzg5MGFiIiwiYWlkIjoiMCIsIm5ldCI6InRjcCIsInR5cGUiOiJub25lIiwiaG9zdCI6IiIsInBhdGgiOiIvIiwidGxzIjoiIn0=\n",
-                "hy2://secret@hy2.example.com:8443?sni=peer.example.com#Hy2%20Node"
-            ),
-            "format": "hiddify_safe",
-            "include_direct": false,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-        assert_eq!(json["format"], "hiddify_safe");
-        assert_eq!(json["content_type"], "application/json; charset=utf-8");
-        assert_eq!(json["code_class"], "language-json");
-        assert_eq!(json["proxies"].as_array().unwrap().len(), 2);
-        assert!(json["proxies"].as_array().unwrap().iter().all(|proxy| {
-            matches!(proxy["protocol"].as_str(), Some("vmess" | "trojan" | "vless"))
-        }));
-        assert!(json["proxies"].as_array().unwrap().iter().all(|proxy| {
-            proxy["name"].as_str() != Some("Plain VMess")
-        }));
-
-        let preview = json["preview_content"].as_str().unwrap();
-        let config: serde_json::Value = serde_json::from_str(preview).unwrap();
-        let outbounds = config["outbounds"].as_array().unwrap();
-        assert!(outbounds.iter().any(|outbound| outbound["type"] == "vmess"));
-        assert!(outbounds.iter().any(|outbound| outbound["type"] == "trojan"));
-        assert!(outbounds.iter().all(|outbound| outbound["type"] != "hysteria2"));
-    }
-
-    #[tokio::test]
-    async fn test_convert_hiddify_safe_filters_out_reality_nodes() {
-        let body = serde_json::json!({
-            "content": concat!(
-                "vless://11111111-1111-1111-1111-111111111111@vless.example.com:443?security=tls#TLS%20VLESS\n",
-                "vless://22222222-2222-2222-2222-222222222222@reality-vless.example.com:443?security=reality&pbk=pubkey&sid=beef#Reality%20VLESS\n",
-                "trojan://secret@trojan.example.com:443#Trojan%20Node\n",
-                "trojan://secret@reality-trojan.example.com:443?security=reality&pbk=pubkey&sid=beef#Reality%20Trojan"
-            ),
-            "format": "hiddify_safe",
-            "include_direct": false,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-        assert_eq!(json["proxies"].as_array().unwrap().len(), 2);
-        assert!(json["proxies"].as_array().unwrap().iter().all(|proxy| {
-            proxy["name"].as_str() != Some("Reality VLESS")
-                && proxy["name"].as_str() != Some("Reality Trojan")
-        }));
-
-        let preview = json["preview_content"].as_str().unwrap();
-        let config: serde_json::Value = serde_json::from_str(preview).unwrap();
-        let outbounds = config["outbounds"].as_array().unwrap();
-        let tags = outbounds
-            .iter()
-            .filter_map(|outbound| outbound["tag"].as_str())
-            .collect::<Vec<_>>();
-        assert!(tags.contains(&"TLS VLESS"));
-        assert!(tags.contains(&"Trojan Node"));
-        assert!(!tags.contains(&"Reality VLESS"));
-        assert!(!tags.contains(&"Reality Trojan"));
-    }
-
-    #[tokio::test]
-    async fn test_convert_singbox_format_normalizes_invalid_proxy_tags_for_groups() {
-        let body = serde_json::json!({
-            "content": concat!(
-                "vless://11111111-1111-1111-1111-111111111111@vless.example.com:443?security=tls#auto\n",
-                "trojan://secret@trojan.example.com:443#auto\n",
-                "trojan://secret2@blank.example.com:443#"
-            ),
-            "format": "singbox",
-            "include_direct": false,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-        assert_eq!(json["format"], "singbox");
-
-        let preview = json["preview_content"].as_str().unwrap();
-        let config: serde_json::Value = serde_json::from_str(preview).unwrap();
-        let outbounds = config["outbounds"].as_array().unwrap();
-        let selector = outbounds.iter().find(|outbound| outbound["tag"] == "proxy").unwrap();
-
-        let proxy_tags = outbounds
-            .iter()
-            .filter_map(|outbound| outbound["tag"].as_str())
-            .filter(|tag| *tag != "proxy" && *tag != "direct")
-            .map(ToString::to_string)
-            .collect::<Vec<_>>();
-
-        assert_eq!(proxy_tags.len(), 3);
-        assert!(proxy_tags.iter().all(|tag| !tag.trim().is_empty()));
-        assert!(proxy_tags
-            .iter()
-            .all(|tag| tag != "proxy" && tag != "direct"));
-
-        let unique_proxy = proxy_tags.iter().collect::<std::collections::HashSet<_>>();
-        assert_eq!(unique_proxy.len(), proxy_tags.len());
-        assert_eq!(selector["outbounds"], serde_json::json!(proxy_tags));
-        assert_eq!(selector["default"], selector["outbounds"][0]);
-    }
-
-    #[tokio::test]
-    async fn test_convert_clash_format_preview_has_proxy_sections() {
-        let body = serde_json::json!({
-            "content": SAMPLE_SUB,
-            "format": "clash",
-            "include_direct": false,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-        assert_eq!(json["format"], "clash");
-
-        let preview = json["preview_content"].as_str().unwrap();
-        assert!(preview.contains("proxies:"));
-        assert!(preview.contains("proxy-groups:"));
-    }
-
-    #[test]
-    fn test_build_passthrough_or_generated_output_rebuilds_subscription_when_raw_lines_include_info_node() {
-        let content = concat!(
-            "trojan://secret@good.example.com:443#Good%20Node\n",
-            "trojan://secret@info.example.com:443#Remaining%20Traffic%20100GB"
-        );
-
-        let result = build_passthrough_or_generated_output(
-            content,
-            &TargetFormat::Subscription,
-            false,
-            false,
-            true,
-        )
-        .unwrap();
-
-        let decoded = base64::engine::general_purpose::STANDARD
-            .decode(&result.content)
-            .unwrap();
-        let decoded = String::from_utf8(decoded).unwrap();
-        let lines = decoded.lines().collect::<Vec<_>>();
-        assert_eq!(lines.len(), 1);
-        assert!(lines[0].contains("#Good%20Node"));
-        assert_eq!(result.proxy_info.len(), 1);
-        assert_eq!(result.outbounds_count, 1);
-    }
-
-    #[test]
-    fn test_build_passthrough_or_generated_output_keeps_v2ray_passthrough_when_sets_match() {
-        let content =
-            "trojan://secret@good.example.com:443?security=tls&sni=good.example.com#Good%20Node";
-
-        let result = build_passthrough_or_generated_output(
-            content,
-            &TargetFormat::V2ray,
-            false,
-            false,
-            true,
-        )
-        .unwrap();
-
-        assert_eq!(result.content, content);
-        assert_eq!(result.proxy_info.len(), 1);
-        assert_eq!(result.outbounds_count, 1);
-    }
-
-    #[tokio::test]
-    async fn test_convert_subscription_rebuilds_subscription_preview_when_input_contains_info_node() {
-        let content = concat!(
-            "trojan://secret@good.example.com:443#Good%20Node\n",
-            "trojan://secret@info.example.com:443#Remaining%20Traffic%20100GB"
-        );
-
-        let (status, body) = post_convert(serde_json::json!({
-            "content": content,
-            "format": "subscription"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], true);
-
-        let decoded = decode_base64_to_string(body["preview_content"].as_str().unwrap()).unwrap();
-        let lines = decoded.lines().collect::<Vec<_>>();
-        assert_eq!(lines, vec!["trojan://secret@good.example.com:443?security=tls&sni=good.example.com#Good%20Node"]);
-        assert_eq!(body["proxies"].as_array().unwrap().len(), 1);
-        assert_eq!(body["outbounds_count"], 1);
-    }
-
-    #[tokio::test]
-    async fn test_convert_subscription_rebuilds_v2ray_preview_when_input_contains_info_node() {
-        let content = concat!(
-            "trojan://secret@good.example.com:443#Good%20Node\n",
-            "trojan://secret@info.example.com:443#Remaining%20Traffic%20100GB"
-        );
-
-        let (status, body) = post_convert(serde_json::json!({
-            "content": content,
-            "format": "v2ray"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], true);
-        assert_eq!(
-            body["preview_content"].as_str().unwrap(),
-            "trojan://secret@good.example.com:443?security=tls&sni=good.example.com#Good%20Node"
-        );
-        assert_eq!(body["proxies"].as_array().unwrap().len(), 1);
-        assert_eq!(body["outbounds_count"], 1);
-    }
-
-    #[tokio::test]
-    async fn test_convert_subscription_path_round_trip_rebuilds_token_output_when_input_contains_info_node() {
-        let content = concat!(
-            "trojan://secret@good.example.com:443#Good%20Node\n",
-            "trojan://secret@info.example.com:443#Remaining%20Traffic%20100GB"
-        );
-
-        let (status, json) = post_convert(serde_json::json!({
-            "content": content,
-            "format": "subscription",
-            "include_direct": false,
-            "include_dns": false
-        }))
-        .await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-
-        let path = json["subscription_path"].as_str().unwrap();
-        let api_uri = path.trim_start_matches("/api/sub");
-        let (status, body, _) = get_subscribe(api_uri).await;
-
-        assert_eq!(status, StatusCode::OK);
-        let decoded = decode_base64_to_string(body.trim()).unwrap();
-        let lines = decoded.lines().collect::<Vec<_>>();
-        assert_eq!(lines, vec!["trojan://secret@good.example.com:443?security=tls&sni=good.example.com#Good%20Node"]);
-    }
-
-    #[tokio::test]
-    async fn test_convert_default_format_is_subscription() {
-        let body = serde_json::json!({
-            "content": SAMPLE_SUB,
-            "include_direct": true,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-        assert_eq!(json["format"], "subscription");
-        assert_eq!(json["content_type"], "text/plain; charset=utf-8");
-
-        let preview = json["preview_content"].as_str().unwrap().trim();
-        let decoded = base64::engine::general_purpose::STANDARD
-            .decode(preview)
-            .unwrap();
-        let decoded_text = String::from_utf8(decoded).unwrap();
-        assert!(decoded_text.contains("vmess://"));
-    }
-
-    #[test]
-    fn test_build_subscription_path_uses_token_for_raw_content() {
-        let req = ConvertRequest {
-            subscription_url: None,
-            content: Some(SAMPLE_SUB.to_string()),
-            format: TargetFormat::Singbox,
-            include_direct: true,
-            include_dns: false,
-        };
-
-        let path = build_subscription_path("raw:sample", &req, SAMPLE_SUB).unwrap();
-        assert!(path.starts_with("/api/sub/subscribe/"));
-        assert!(path.len() > "/api/sub/subscribe/".len());
-    }
-
-    #[test]
-    fn test_build_subscription_path_uses_live_link_for_url_source() {
-        let req = ConvertRequest {
-            subscription_url: Some("https://example.com/sub?token=abc def".to_string()),
-            content: None,
-            format: TargetFormat::Clash,
-            include_direct: true,
-            include_dns: false,
-        };
-
-        let path = build_subscription_path(
-            "https://example.com/sub?token=abc def",
-            &req,
-            SAMPLE_SUB,
-        )
-        .unwrap();
-
-        assert_eq!(
-            path,
-            "/api/sub/subscribe?source=https%3A%2F%2Fexample.com%2Fsub%3Ftoken%3Dabc%20def&format=clash&include_direct=true&include_dns=false"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_convert_returns_subscription_path() {
-        let body = serde_json::json!({
-            "content": SAMPLE_SUB,
-            "format": "singbox",
-            "include_direct": true,
-            "include_dns": true
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(json["success"], true);
-        let path = json["subscription_path"].as_str().unwrap();
-        assert!(path.starts_with("/api/sub/subscribe/"));
-        assert!(path.len() > "/api/sub/subscribe/".len());
-        assert!(
-            json["preview_content"]
-                .as_str()
-                .unwrap()
-                .contains("outbounds")
-        );
-    }
-
-    #[test]
-    fn test_build_token_subscription_path() {
-        let path = build_token_subscription_path(
-            SAMPLE_SUB,
-            &TargetFormat::Clash,
-            true,
-            false,
-        )
-        .unwrap();
-        assert!(path.starts_with("/api/sub/subscribe/"));
-        assert!(path.len() > "/api/sub/subscribe/".len());
-    }
-
-    #[tokio::test]
-    async fn test_subscribe_subscription_passthrough_keeps_base64_content_when_sets_match() {
-        let canonical = STANDARD.encode(
-            "trojan://secret@good.example.com:443?security=tls&sni=good.example.com#Good%20Node",
-        );
-        let path = build_token_subscription_path(
-            &canonical,
-            &TargetFormat::Subscription,
-            false,
-            false,
-        )
-        .unwrap();
-        let api_uri = path.trim_start_matches("/api/sub");
-
-        let (status, body, content_type) = get_subscribe(api_uri).await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(content_type.unwrap_or_default().starts_with("text/plain"));
-        assert_eq!(body.trim(), canonical);
-    }
-
-    #[tokio::test]
-    async fn test_subscribe_by_token_singbox_content_type() {
-        let body = serde_json::json!({
-            "content": SAMPLE_SUB,
-            "format": "singbox",
-            "include_direct": true,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        let path = json["subscription_path"].as_str().unwrap();
-
-        let api_uri = path.trim_start_matches("/api/sub");
-        let (status, body, content_type) = get_subscribe(api_uri).await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(
-            content_type
-                .unwrap_or_default()
-                .starts_with("application/json")
-        );
-        assert!(body.contains("outbounds"));
-        assert!(!body.contains("\"type\": \"block\""));
-        assert!(!body.contains("\"type\": \"dns\""));
-    }
-
-    #[tokio::test]
-    async fn test_subscribe_by_token_hiddify_safe_content_type() {
-        let body = serde_json::json!({
-            "content": concat!(
-                "trojan://secret@trojan.example.com:443#Trojan%20Node\n",
-                "hy2://secret@hy2.example.com:8443?sni=peer.example.com#Hy2%20Node"
-            ),
-            "format": "hiddify_safe",
-            "include_direct": true,
-            "include_dns": false
-        });
-
-        let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
-        let path = json["subscription_path"].as_str().unwrap();
-
-        let api_uri = path.trim_start_matches("/api/sub");
-        let (status, body, content_type) = get_subscribe(api_uri).await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(content_type
-            .unwrap_or_default()
-            .starts_with("application/json"));
-        let config: serde_json::Value = serde_json::from_str(&body).unwrap();
-        let outbounds = config["outbounds"].as_array().unwrap();
-        assert!(outbounds.iter().any(|outbound| outbound["type"] == "trojan"));
-        assert!(outbounds.iter().all(|outbound| outbound["type"] != "hysteria2"));
-    }
-
-    #[tokio::test]
-    async fn test_subscribe_by_token_not_found() {
-        let (status, body, _) = get_subscribe("/subscribe/not-found-token").await;
-        assert_eq!(status, StatusCode::NOT_FOUND);
-        assert!(body.contains("expired") || body.contains("invalid"));
     }
 
     #[test]
@@ -1210,7 +601,6 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_generate_singbox_config_uses_mixed_inbound() {
         let (config, _) = generate_singbox_config(&[SAMPLE_SUB.to_string()], true, true).unwrap();
@@ -1219,76 +609,6 @@ mod tests {
         assert_eq!(first["type"].as_str().unwrap(), "mixed");
         assert_eq!(first["listen"].as_str().unwrap(), "127.0.0.1");
         assert_eq!(first["listen_port"].as_u64().unwrap(), 10808);
-    }
-
-    #[tokio::test]
-    async fn test_subscribe_v2ray_content_type_and_plain_lines() {
-        let source = format!("raw:{}", SAMPLE_SUB);
-        let uri = format!(
-            "/subscribe?source={}&format=v2ray&include_direct=true&include_dns=false",
-            urlencoding::encode(&source)
-        );
-        let (status, body, content_type) = get_subscribe(&uri).await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(content_type.unwrap_or_default().starts_with("text/plain"));
-        let text = body.trim();
-        assert!(text.starts_with("vmess://"));
-        assert!(
-            base64::engine::general_purpose::STANDARD
-                .decode(text)
-                .is_err(),
-            "v2ray format should be plain URI lines, not base64 wrapped"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_convert_singbox_clash_vless_reality_preserves_grpc_and_reality_fields() {
-        let clash_yaml = r#"
-proxies:
-  - name: clash-vless-reality
-    type: vless
-    server: vless.example.com
-    port: 443
-    uuid: 88888888-8888-8888-8888-888888888888
-    tls: true
-    servername: reality.example.com
-    client-fingerprint: firefox
-    alpn:
-      - h2
-    network: grpc
-    grpc-opts:
-      grpc-service-name: grpc-service
-    reality-opts:
-      public-key: pubkey123
-      short-id: 1a2b
-"#;
-
-        let (status, body) = post_convert(serde_json::json!({
-            "content": clash_yaml,
-            "format": "singbox"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], true);
-
-        let preview = body["preview_content"].as_str().unwrap();
-        let config: serde_json::Value = serde_json::from_str(preview).unwrap();
-        let outbound = config["outbounds"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .find(|outbound| outbound["type"] == "vless")
-            .unwrap();
-
-        assert_eq!(outbound["transport"]["type"], "grpc");
-        assert_eq!(outbound["transport"]["service_name"], "grpc-service");
-        assert_eq!(outbound["tls"]["server_name"], "reality.example.com");
-        assert_eq!(outbound["tls"]["utls"]["fingerprint"], "firefox");
-        assert_eq!(outbound["tls"]["alpn"][0], "h2");
-        assert_eq!(outbound["tls"]["reality"]["enabled"], true);
-        assert_eq!(outbound["tls"]["reality"]["public_key"], "pubkey123");
-        assert_eq!(outbound["tls"]["reality"]["short_id"], "1a2b");
     }
 
     #[test]
@@ -1514,24 +834,6 @@ proxies:
         assert_eq!(outbound["password"], "pa@ss:#?");
     }
 
-    #[tokio::test]
-    async fn test_convert_subscription_rejects_anytls_ws_for_singbox() {
-        let url = "anytls://pass@example.com:443?type=ws&path=%2Fws&host=cdn.example.com&sni=www.google.com#bad-anytls";
-
-        let (status, body) = post_convert(serde_json::json!({
-            "content": url,
-            "format": "singbox"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], false);
-        assert!(body["error"]
-            .as_str()
-            .unwrap()
-            .contains("AnyTLS websocket transport is not supported for sing-box output"));
-    }
-
     #[test]
     fn test_clash_hysteria2_to_url_preserves_tls_obfs_bandwidth() {
         let yaml = r#"
@@ -1601,7 +903,8 @@ proxies:
 
     #[test]
     fn test_generate_subscription_content_uses_shared_generator_to_encode_trojan_password() {
-        let input = "trojan://pa%40ss%3A%23%3F@example.com:443?sni=www.google.com#Trojan".to_string();
+        let input =
+            "trojan://pa%40ss%3A%23%3F@example.com:443?sni=www.google.com#Trojan".to_string();
 
         let (content, proxies) = generate_subscription_content(&[input]).unwrap();
         let decoded = base64_decode(&content).unwrap();
@@ -1613,7 +916,8 @@ proxies:
 
     #[test]
     fn test_generate_v2ray_subscription_content_uses_shared_generator_to_encode_anytls_password() {
-        let input = "anytls://pa%40ss%3A%23%3F@example.com:443?sni=www.google.com#AnyTLS".to_string();
+        let input =
+            "anytls://pa%40ss%3A%23%3F@example.com:443?sni=www.google.com#AnyTLS".to_string();
 
         let (content, proxies) = generate_v2ray_subscription_content(&[input]).unwrap();
 
@@ -1622,25 +926,9 @@ proxies:
         assert!(content.contains("sni=www.google.com"));
     }
 
-    #[tokio::test]
-    async fn test_convert_subscription_rebuilds_subscription_output_from_proxy_nodes() {
-        let (status, body) = post_convert(serde_json::json!({
-            "content": "trojan://pa%40ss%3A%23%3F@example.com:443?sni=www.google.com#Trojan",
-            "format": "subscription"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], true);
-
-        let preview = body["preview_content"].as_str().unwrap();
-        let decoded = base64_decode(preview).unwrap();
-        assert!(decoded.starts_with("trojan://pa%40ss%3A%23%3F@example.com:443?"));
-        assert!(decoded.contains("security=tls"));
-    }
-
     #[test]
-    fn test_generate_v2ray_subscription_content_uses_shared_generator_to_encode_hysteria2_password() {
+    fn test_generate_v2ray_subscription_content_uses_shared_generator_to_encode_hysteria2_password()
+    {
         let input = "hy2://pa%40ss%3A%23%3F@example.com:443?sni=www.google.com#HY2".to_string();
 
         let (content, proxies) = generate_v2ray_subscription_content(&[input]).unwrap();
@@ -1668,7 +956,8 @@ proxies:
         });
         let input = format!(
             "vmess://{}",
-            base64::engine::general_purpose::STANDARD.encode(serde_json::to_string(&vmess_json).unwrap())
+            base64::engine::general_purpose::STANDARD
+                .encode(serde_json::to_string(&vmess_json).unwrap())
         );
 
         let (content, proxies) = generate_v2ray_subscription_content(&[input]).unwrap();
@@ -1679,110 +968,6 @@ proxies:
         assert_eq!(proxies.len(), 1);
         assert_eq!(rebuilt_json["host"], "cdn.example.com");
         assert_eq!(rebuilt_json["sni"], "tls.example.com");
-    }
-
-    #[tokio::test]
-    async fn test_convert_subscription_rebuilds_hysteria2_password_encoding_from_proxy_nodes() {
-        let (status, body) = post_convert(serde_json::json!({
-            "content": "hy2://pa%40ss%3A%23%3F@example.com:443?sni=www.google.com#HY2",
-            "format": "v2ray"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], true);
-
-        let preview = body["preview_content"].as_str().unwrap();
-        assert!(preview.starts_with("hysteria2://pa%40ss%3A%23%3F@example.com:443?"));
-        assert!(preview.contains("sni=www.google.com"));
-    }
-
-    #[tokio::test]
-    async fn test_convert_subscription_rebuilds_vmess_explicit_sni_from_proxy_nodes() {
-        let vmess_json = serde_json::json!({
-            "v": "2",
-            "ps": "vmess-sni",
-            "add": "edge.example.com",
-            "port": "443",
-            "id": "77777777-7777-7777-7777-777777777777",
-            "aid": "0",
-            "net": "ws",
-            "type": "none",
-            "host": "cdn.example.com",
-            "path": "/ws",
-            "tls": "tls",
-            "sni": "tls.example.com"
-        });
-        let content = format!(
-            "vmess://{}",
-            base64::engine::general_purpose::STANDARD.encode(serde_json::to_string(&vmess_json).unwrap())
-        );
-
-        let (status, body) = post_convert(serde_json::json!({
-            "content": content,
-            "format": "v2ray"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], true);
-
-        let preview = body["preview_content"].as_str().unwrap();
-        let rebuilt = preview.strip_prefix("vmess://").unwrap();
-        let decoded = base64_decode(rebuilt).unwrap();
-        let rebuilt_json: serde_json::Value = serde_json::from_str(&decoded).unwrap();
-        assert_eq!(rebuilt_json["host"], "cdn.example.com");
-        assert_eq!(rebuilt_json["sni"], "tls.example.com");
-    }
-
-    #[tokio::test]
-    async fn test_convert_subscription_surfaces_malformed_clash_ss_error() {
-        let yaml = r#"
-proxies:
-  - name: bad-ss
-    type: ss
-    server: ss.example.com
-    port: 8388
-    cipher: aes-256-gcm
-"#;
-
-        let (status, body) = post_convert(serde_json::json!({
-            "content": yaml,
-            "format": "singbox"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], false);
-        assert!(body["error"]
-            .as_str()
-            .unwrap()
-            .contains("Clash SS proxy password is required"));
-    }
-
-    #[tokio::test]
-    async fn test_convert_subscription_surfaces_malformed_clash_ssr_error() {
-        let yaml = r#"
-proxies:
-  - name: bad-ssr
-    type: ssr
-    server: ssr.example.com
-    port: 9443
-    password: secret-pass
-"#;
-
-        let (status, body) = post_convert(serde_json::json!({
-            "content": yaml,
-            "format": "singbox"
-        }))
-        .await;
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(body["success"], false);
-        assert!(body["error"]
-            .as_str()
-            .unwrap()
-            .contains("Clash SSR proxy cipher is required"));
     }
 
     #[tokio::test]

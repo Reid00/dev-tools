@@ -72,7 +72,6 @@ fn vmess_node_to_uri(node: &ProxyNode) -> String {
     )
 }
 
-
 fn vless_node_to_uri(node: &ProxyNode) -> String {
     let mut url = format!(
         "vless://{}@{}:{}?type={}",
@@ -98,7 +97,10 @@ fn vless_node_to_uri(node: &ProxyNode) -> String {
     }
 
     if !node.tls_fingerprint.is_empty() {
-        url.push_str(&format!("&fp={}", urlencoding::encode(&node.tls_fingerprint)));
+        url.push_str(&format!(
+            "&fp={}",
+            urlencoding::encode(&node.tls_fingerprint)
+        ));
     }
 
     if !node.tls_alpn.is_empty() {
@@ -110,20 +112,32 @@ fn vless_node_to_uri(node: &ProxyNode) -> String {
 
     if node.reality_enabled {
         if !node.reality_public_key.is_empty() {
-            url.push_str(&format!("&pbk={}", urlencoding::encode(&node.reality_public_key)));
+            url.push_str(&format!(
+                "&pbk={}",
+                urlencoding::encode(&node.reality_public_key)
+            ));
         }
         if !node.reality_short_id.is_empty() {
-            url.push_str(&format!("&sid={}", urlencoding::encode(&node.reality_short_id)));
+            url.push_str(&format!(
+                "&sid={}",
+                urlencoding::encode(&node.reality_short_id)
+            ));
         }
     }
 
     match node.transport {
         TransportType::Ws | TransportType::Http => {
             if !node.transport_path.is_empty() {
-                url.push_str(&format!("&path={}", urlencoding::encode(&node.transport_path)));
+                url.push_str(&format!(
+                    "&path={}",
+                    urlencoding::encode(&node.transport_path)
+                ));
             }
             if !node.transport_host.is_empty() {
-                url.push_str(&format!("&host={}", urlencoding::encode(&node.transport_host)));
+                url.push_str(&format!(
+                    "&host={}",
+                    urlencoding::encode(&node.transport_host)
+                ));
             }
         }
         TransportType::Grpc => {
@@ -134,7 +148,10 @@ fn vless_node_to_uri(node: &ProxyNode) -> String {
                 ));
             }
             if !node.transport_host.is_empty() {
-                url.push_str(&format!("&host={}", urlencoding::encode(&node.transport_host)));
+                url.push_str(&format!(
+                    "&host={}",
+                    urlencoding::encode(&node.transport_host)
+                ));
             }
         }
         TransportType::Tcp => {}
@@ -162,7 +179,10 @@ fn trojan_node_to_uri(node: &ProxyNode) -> String {
         url.push_str(&format!("&sni={}", urlencoding::encode(&node.tls_sni)));
     }
     if !node.tls_fingerprint.is_empty() {
-        url.push_str(&format!("&fp={}", urlencoding::encode(&node.tls_fingerprint)));
+        url.push_str(&format!(
+            "&fp={}",
+            urlencoding::encode(&node.tls_fingerprint)
+        ));
     }
     if !node.tls_alpn.is_empty() {
         url.push_str(&format!(
@@ -176,10 +196,16 @@ fn trojan_node_to_uri(node: &ProxyNode) -> String {
         match node.transport {
             TransportType::Ws | TransportType::Http => {
                 if !node.transport_path.is_empty() {
-                    url.push_str(&format!("&path={}", urlencoding::encode(&node.transport_path)));
+                    url.push_str(&format!(
+                        "&path={}",
+                        urlencoding::encode(&node.transport_path)
+                    ));
                 }
                 if !node.transport_host.is_empty() {
-                    url.push_str(&format!("&host={}", urlencoding::encode(&node.transport_host)));
+                    url.push_str(&format!(
+                        "&host={}",
+                        urlencoding::encode(&node.transport_host)
+                    ));
                 }
             }
             TransportType::Grpc => {
@@ -190,7 +216,10 @@ fn trojan_node_to_uri(node: &ProxyNode) -> String {
                     ));
                 }
                 if !node.transport_host.is_empty() {
-                    url.push_str(&format!("&host={}", urlencoding::encode(&node.transport_host)));
+                    url.push_str(&format!(
+                        "&host={}",
+                        urlencoding::encode(&node.transport_host)
+                    ));
                 }
             }
             TransportType::Tcp => {}
@@ -199,10 +228,16 @@ fn trojan_node_to_uri(node: &ProxyNode) -> String {
 
     if node.reality_enabled {
         if !node.reality_public_key.is_empty() {
-            url.push_str(&format!("&pbk={}", urlencoding::encode(&node.reality_public_key)));
+            url.push_str(&format!(
+                "&pbk={}",
+                urlencoding::encode(&node.reality_public_key)
+            ));
         }
         if !node.reality_short_id.is_empty() {
-            url.push_str(&format!("&sid={}", urlencoding::encode(&node.reality_short_id)));
+            url.push_str(&format!(
+                "&sid={}",
+                urlencoding::encode(&node.reality_short_id)
+            ));
         }
     }
 
@@ -244,12 +279,7 @@ fn ssr_node_to_uri(node: &ProxyNode) -> String {
     let password_encoded = STANDARD.encode(&node.password);
     let main = format!(
         "{}:{}:{}:{}:{}:{}",
-        node.server,
-        node.port,
-        node.ssr_protocol,
-        node.method,
-        node.ssr_obfs,
-        password_encoded
+        node.server, node.port, node.ssr_protocol, node.method, node.ssr_obfs, password_encoded
     );
     let params = format!(
         "/?obfsparam={}&protoparam={}&remarks={}",
@@ -281,7 +311,10 @@ fn hysteria2_node_to_uri(node: &ProxyNode) -> String {
         ));
     }
     if !node.hy2_obfs_type.is_empty() {
-        url.push_str(&format!("obfs={}&", urlencoding::encode(&node.hy2_obfs_type)));
+        url.push_str(&format!(
+            "obfs={}&",
+            urlencoding::encode(&node.hy2_obfs_type)
+        ));
     }
     if !node.hy2_obfs_password.is_empty() {
         url.push_str(&format!(
@@ -316,7 +349,10 @@ fn anytls_node_to_uri(node: &ProxyNode) -> String {
         url.push_str(&format!("sni={}&", urlencoding::encode(&node.tls_sni)));
     }
     if !node.tls_fingerprint.is_empty() {
-        url.push_str(&format!("fp={}&", urlencoding::encode(&node.tls_fingerprint)));
+        url.push_str(&format!(
+            "fp={}&",
+            urlencoding::encode(&node.tls_fingerprint)
+        ));
     }
     if !node.tls_alpn.is_empty() {
         url.push_str(&format!(
@@ -332,10 +368,16 @@ fn anytls_node_to_uri(node: &ProxyNode) -> String {
         TransportType::Ws => {
             url.push_str("type=ws&");
             if !node.transport_path.is_empty() {
-                url.push_str(&format!("path={}&", urlencoding::encode(&node.transport_path)));
+                url.push_str(&format!(
+                    "path={}&",
+                    urlencoding::encode(&node.transport_path)
+                ));
             }
             if !node.transport_host.is_empty() {
-                url.push_str(&format!("host={}&", urlencoding::encode(&node.transport_host)));
+                url.push_str(&format!(
+                    "host={}&",
+                    urlencoding::encode(&node.transport_host)
+                ));
             }
         }
         TransportType::Tcp | TransportType::Grpc | TransportType::Http => {}
@@ -401,7 +443,8 @@ mod tests {
 
     #[test]
     fn test_vmess_node_to_uri_preserves_scy_method() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::Vmess, "VMess Cipher", "server.com", 443);
+        let mut node =
+            ProxyNode::default_with(ProxyProtocol::Vmess, "VMess Cipher", "server.com", 443);
         node.uuid = "vmess-cipher-uuid".to_string();
         node.method = "chacha20-poly1305".to_string();
 
@@ -414,7 +457,8 @@ mod tests {
 
     #[test]
     fn test_vmess_node_to_uri_preserves_explicit_sni_when_different_from_host() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::Vmess, "VMess SNI", "server.com", 443);
+        let mut node =
+            ProxyNode::default_with(ProxyProtocol::Vmess, "VMess SNI", "server.com", 443);
         node.uuid = "vmess-sni-uuid".to_string();
         node.transport = TransportType::Ws;
         node.transport_path = "/ws".to_string();
@@ -433,7 +477,8 @@ mod tests {
 
     #[test]
     fn test_vless_node_to_uri_reality() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::Vless, "RealityNode", "server.com", 443);
+        let mut node =
+            ProxyNode::default_with(ProxyProtocol::Vless, "RealityNode", "server.com", 443);
         node.uuid = "vless-uuid".to_string();
         node.transport = TransportType::Ws;
         node.transport_path = "/ws".to_string();
@@ -455,10 +500,10 @@ mod tests {
         assert!(uri.contains("type=ws"));
     }
 
-
     #[test]
     fn test_trojan_node_to_uri_encodes_password_and_transport_fields() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::Trojan, "Trojan Node", "server.com", 443);
+        let mut node =
+            ProxyNode::default_with(ProxyProtocol::Trojan, "Trojan Node", "server.com", 443);
         node.password = "pa@ss:#?".to_string();
         node.transport = TransportType::Ws;
         node.transport_path = "/ws".to_string();
@@ -480,7 +525,8 @@ mod tests {
 
     #[test]
     fn test_ss_node_to_uri_preserves_plugin_fields() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::Shadowsocks, "SS Node", "1.2.3.4", 8388);
+        let mut node =
+            ProxyNode::default_with(ProxyProtocol::Shadowsocks, "SS Node", "1.2.3.4", 8388);
         node.method = "aes-128-gcm".to_string();
         node.password = "mypass".to_string();
         node.ss_plugin = "v2ray-plugin".to_string();
@@ -497,7 +543,12 @@ mod tests {
 
     #[test]
     fn test_ssr_node_to_uri_preserves_params() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::ShadowsocksR, "SSR Node", "ssr.example.com", 9443);
+        let mut node = ProxyNode::default_with(
+            ProxyProtocol::ShadowsocksR,
+            "SSR Node",
+            "ssr.example.com",
+            9443,
+        );
         node.method = "aes-256-cfb".to_string();
         node.password = "secret-pass".to_string();
         node.ssr_protocol = "auth_sha1_v4".to_string();
@@ -509,7 +560,9 @@ mod tests {
         assert!(uri.starts_with("ssr://"));
 
         let decoded = base64_decode(uri.strip_prefix("ssr://").unwrap()).unwrap();
-        assert!(decoded.contains("ssr.example.com:9443:auth_sha1_v4:aes-256-cfb:tls1.2_ticket_auth"));
+        assert!(
+            decoded.contains("ssr.example.com:9443:auth_sha1_v4:aes-256-cfb:tls1.2_ticket_auth")
+        );
         assert!(decoded.contains("obfsparam=b2Jmcy1ob3N0LmV4YW1wbGUuY29t"));
         assert!(decoded.contains("protoparam=cHJvdG8tcGFyYW0="));
         assert!(decoded.contains("remarks=U1NSIE5vZGU="));
@@ -517,7 +570,8 @@ mod tests {
 
     #[test]
     fn test_hysteria2_node_to_uri_preserves_tls_obfs_bandwidth() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::Hysteria2, "Hy2 Node", "hy.example.com", 443);
+        let mut node =
+            ProxyNode::default_with(ProxyProtocol::Hysteria2, "Hy2 Node", "hy.example.com", 443);
         node.password = "pass".to_string();
         node.tls_enabled = true;
         node.tls_sni = "www.google.com".to_string();
@@ -541,7 +595,12 @@ mod tests {
 
     #[test]
     fn test_hysteria2_node_to_uri_percent_encodes_password() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::Hysteria2, "Hy2 Encoded", "hy.example.com", 443);
+        let mut node = ProxyNode::default_with(
+            ProxyProtocol::Hysteria2,
+            "Hy2 Encoded",
+            "hy.example.com",
+            443,
+        );
         node.password = "pa@ss:#?".to_string();
 
         let uri = node_to_uri(&node);
@@ -551,7 +610,8 @@ mod tests {
 
     #[test]
     fn test_anytls_node_to_uri_encodes_password_and_ws_fields() {
-        let mut node = ProxyNode::default_with(ProxyProtocol::Anytls, "AnyTLS Node", "any.example.com", 443);
+        let mut node =
+            ProxyNode::default_with(ProxyProtocol::Anytls, "AnyTLS Node", "any.example.com", 443);
         node.password = "pa@ss:#?".to_string();
         node.transport = TransportType::Ws;
         node.transport_path = "/ws".to_string();
@@ -571,7 +631,6 @@ mod tests {
         assert!(uri.contains("path=%2Fws"));
         assert!(uri.contains("host=cdn.example.com"));
     }
-
 
     #[test]
     fn test_generate_subscription_content_base64_wraps_uri_lines() {
