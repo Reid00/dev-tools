@@ -900,6 +900,7 @@
                         <h3 class="text-base font-semibold text-gray-700" id="sub-output-title">订阅内容预览</h3>
                         <div class="flex gap-2">
                             <button onclick="copySubscriptionLink()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">复制订阅链接</button>
+                            <button onclick="downloadSubJson()" class="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-sm font-medium transition-colors">下载 JSON</button>
                             <button onclick="copySubContent()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-sm font-medium transition-colors">复制内容</button>
                         </div>
                     </div>
@@ -3346,6 +3347,15 @@ ${preview.innerHTML}
         }).catch(() => {
             showToast('复制失败');
         });
+    }
+
+    function downloadSubJson() {
+        if (!currentSubContent) {
+            showToast('没有 JSON 可下载');
+            return;
+        }
+        downloadFile('sing-box-config.json', currentSubContent, 'application/json');
+        showToast('JSON 已下载', 'success');
     }
 
     function clearSubInput() {

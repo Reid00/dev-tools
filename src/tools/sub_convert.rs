@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 const JSON_CONTENT_TYPE: &str = "application/json; charset=utf-8";
 const JSON_CODE_CLASS: &str = "language-json";
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct ConvertRequest {
     pub subscription_url: String,
     #[serde(default)]
@@ -76,6 +76,8 @@ pub async fn list_templates() -> Json<Vec<template::TemplateDescriptor>> {
 }
 
 async fn convert_subscription(Json(req): Json<ConvertRequest>) -> Json<ConvertResponse> {
+    tracing::info!(request_body = ?req, "subscription convert request");
+
     match convert_subscription_inner(req).await {
         Ok(response) => Json(response),
         Err(error) => Json(error_response(error)),
@@ -90,6 +92,8 @@ async fn convert_subscription_inner(req: ConvertRequest) -> Result<ConvertRespon
     );
     let subscription_url = source::validate_subscription_input(&req.subscription_url)?;
     let subscription_url = publish::append_reference_query_params(&subscription_url, &query_params);
+    tracing::info!(subscription_url = %subscription_url, "subscription convert source link");
+
     let resolved_template =
         template::resolve_template(req.template.as_deref(), req.file.as_deref())?;
     let template_text = template::load_template_text(&resolved_template).await?;
@@ -114,6 +118,7 @@ async fn convert_subscription_inner(req: ConvertRequest) -> Result<ConvertRespon
         &template_file_value(&resolved_template),
         &query_params,
     );
+    tracing::info!(subscription_path = %subscription_path, "subscription convert generated link");
 
     Ok(ConvertResponse {
         success: true,
@@ -152,9 +157,13 @@ async fn config_inner(raw_source: String, query: Option<&str>) -> Result<String,
         _ => raw_source,
     };
     let parsed_source = source::split_config_source_and_query(&raw_source)?;
+    tracing::info!(request_link = %raw_source, "subscription config request link");
+
     let query_params = publish::ReferenceQueryParams::default();
     let subscription_url =
         publish::append_reference_query_params(&parsed_source.subscription_url, &query_params);
+    tracing::info!(subscription_url = %subscription_url, "subscription config source link");
+
     let resolved_template = template::resolve_template(None, parsed_source.file.as_deref())?;
     let template_text = template::load_template_text(&resolved_template).await?;
     let source_content =

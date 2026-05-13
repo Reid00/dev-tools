@@ -180,6 +180,7 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
       'convertSubscription',
       'displaySubResult',
       'updateSubLineNumbers',
+      'downloadSubJson',
     ].map((name) => extractNamedFunctionSource(html, name)).join('\n\n'),
   ].join('\n\n');
 
@@ -206,6 +207,7 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
     'sub-line-numbers': createElement(),
   };
   const calls = [];
+  const downloads = [];
   const toastMessages = [];
   const responses = [...fetchResponses];
 
@@ -234,6 +236,9 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
     showToast: (message, type = 'error') => {
       toastMessages.push({ message, type });
     },
+    downloadFile: (filename, content, type) => {
+      downloads.push({ filename, content, type });
+    },
     escapeHtml: (value) => String(value)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
@@ -255,6 +260,7 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
     `${script}; globalThis.__loaded = {
       loadSubTemplates,
       convertSubscription,
+      downloadSubJson,
       get currentSubContent() { return currentSubContent; },
       get currentSubscriptionLink() { return currentSubscriptionLink; },
       get currentSubTemplates() { return currentSubTemplates; },
@@ -266,10 +272,12 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
   return {
     loadSubTemplates: loaded.loadSubTemplates,
     convertSubscription: loaded.convertSubscription,
+    downloadSubJson: loaded.downloadSubJson,
     get currentSubContent() { return loaded.currentSubContent; },
     get currentSubscriptionLink() { return loaded.currentSubscriptionLink; },
     get currentSubTemplates() { return loaded.currentSubTemplates; },
     calls,
+    downloads,
     elements,
     toastMessages,
   };
@@ -356,6 +364,16 @@ test('subscription UI loads templates, converts, then clears stale result on fai
     ui.elements['sub-template-result-text'].textContent,
     'Remote template · 远程模板 · file=https://example.com/template.json'
   );
+
+  ui.downloadSubJson();
+  assert.deepEqual(ui.downloads, [
+    {
+      filename: 'sing-box-config.json',
+      content: '{"outbounds":[{"tag":"proxy"}]}',
+      type: 'application/json',
+    },
+  ]);
+  assert.ok(ui.toastMessages.some(({ message, type }) => message === 'JSON 已下载' && type === 'success'));
 
   await ui.convertSubscription();
 
