@@ -98,7 +98,7 @@ async fn convert_subscription_inner(req: ConvertRequest) -> Result<ConvertRespon
         template::resolve_template(req.template.as_deref(), req.file.as_deref())?;
     let template_text = template::load_template_text(&resolved_template).await?;
     let source_content =
-        runtime::fetch_subscription(&subscription_url, &TargetFormat::Singbox).await?;
+        runtime::fetch_subscription_with_user_agent(&subscription_url, &query_params.ua).await?;
     let nodes = parser::parse_subscription_content(&source_content)?;
     if nodes.is_empty() {
         return Err("No valid proxy URLs found".to_string());
@@ -159,7 +159,7 @@ async fn config_inner(raw_source: String, query: Option<&str>) -> Result<String,
     let parsed_source = source::split_config_source_and_query(&raw_source)?;
     tracing::info!(request_link = %raw_source, "subscription config request link");
 
-    let query_params = publish::ReferenceQueryParams::default();
+    let query_params = publish::reference_query_params_from_url(&parsed_source.subscription_url);
     let subscription_url =
         publish::append_reference_query_params(&parsed_source.subscription_url, &query_params);
     tracing::info!(subscription_url = %subscription_url, "subscription config source link");
@@ -167,7 +167,7 @@ async fn config_inner(raw_source: String, query: Option<&str>) -> Result<String,
     let resolved_template = template::resolve_template(None, parsed_source.file.as_deref())?;
     let template_text = template::load_template_text(&resolved_template).await?;
     let source_content =
-        runtime::fetch_subscription(&subscription_url, &TargetFormat::Singbox).await?;
+        runtime::fetch_subscription_with_user_agent(&subscription_url, &query_params.ua).await?;
     let nodes = parser::parse_subscription_content(&source_content)?;
     if nodes.is_empty() {
         return Err("No valid proxy URLs found".to_string());

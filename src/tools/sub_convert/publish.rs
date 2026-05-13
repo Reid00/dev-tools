@@ -61,6 +61,14 @@ pub fn build_config_path(
     )
 }
 
+pub fn reference_query_params_from_url(subscription_url: &str) -> ReferenceQueryParams {
+    ReferenceQueryParams::new(
+        query_param(subscription_url, "ua").as_deref(),
+        query_param(subscription_url, "emoji").as_deref(),
+        query_param(subscription_url, "eps").as_deref(),
+    )
+}
+
 fn value_or_default(value: Option<&str>, default: String) -> String {
     value
         .map(str::trim)
@@ -70,15 +78,17 @@ fn value_or_default(value: Option<&str>, default: String) -> String {
 }
 
 fn has_query_param(url: &str, key: &str) -> bool {
-    let Some((_, query)) = url.split_once('?') else {
-        return false;
-    };
+    query_param(url, key).is_some()
+}
+
+fn query_param(url: &str, key: &str) -> Option<String> {
+    let (_, query) = url.split_once('?')?;
     let query = query.split('#').next().unwrap_or(query);
 
-    query.split('&').any(|pair| {
+    query.split('&').find_map(|pair| {
         pair.split_once('=')
-            .map(|(name, _)| name == key)
-            .unwrap_or(pair == key)
+            .and_then(|(name, value)| (name == key).then(|| value.to_string()))
+            .or_else(|| (pair == key).then(String::new))
     })
 }
 
@@ -123,5 +133,16 @@ mod tests {
         let url = append_reference_query_params("https://example.com/sub", &params);
 
         assert_eq!(url, "https://example.com/sub?ua=clashmeta&emoji=0&eps=ssr");
+    }
+
+    #[test]
+    fn reference_query_params_from_url_uses_existing_values() {
+        let params = reference_query_params_from_url(
+            "https://example.com/sub?token=abc&ua=v2rayng&emoji=0&eps=vless",
+        );
+
+        assert_eq!(params.ua, "v2rayng");
+        assert_eq!(params.emoji, "0");
+        assert_eq!(params.eps, "vless");
     }
 }

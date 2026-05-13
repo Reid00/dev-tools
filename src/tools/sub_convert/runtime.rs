@@ -1,3 +1,4 @@
+#[cfg(test)]
 use super::generator::TargetFormat;
 #[cfg(test)]
 use super::{
@@ -667,20 +668,20 @@ pub(crate) enum FetchOutcome {
 
 async fn fetch_remote_text_with<F, Fut>(
     url: &str,
-    _user_agent: &str,
+    user_agent: &str,
     response_label: &str,
     max_size: usize,
     mut fetch_once: F,
 ) -> Result<String, String>
 where
-    F: FnMut(Url) -> Fut,
+    F: FnMut(Url, String) -> Fut,
     Fut: Future<Output = Result<FetchOutcome, String>>,
 {
     let mut current_url = Url::parse(url).map_err(|e| format!("Invalid URL: {}", e))?;
 
     for _ in 0..5 {
         validate_subscription_target(&current_url).await?;
-        match fetch_once(current_url.clone()).await? {
+        match fetch_once(current_url.clone(), user_agent.to_string()).await? {
             FetchOutcome::Redirect(location) => {
                 current_url = current_url
                     .join(&location)
@@ -710,9 +711,12 @@ pub(crate) async fn fetch_remote_text(
     response_label: &str,
     max_size: usize,
 ) -> Result<String, String> {
-    fetch_remote_text_with(url, user_agent, response_label, max_size, |current_url| {
-        let user_agent = user_agent.to_string();
-        async move {
+    fetch_remote_text_with(
+        url,
+        user_agent,
+        response_label,
+        max_size,
+        |current_url, user_agent| async move {
             let resolved_addrs = validate_subscription_target(&current_url).await?;
             let host = current_url
                 .host_str()
@@ -770,8 +774,8 @@ pub(crate) async fn fetch_remote_text(
             }
 
             Ok(FetchOutcome::Body(body))
-        }
-    })
+        },
+    )
     .await
 }
 
@@ -806,6 +810,7 @@ fn size_error(response_label: &str) -> String {
     }
 }
 
+#[cfg(test)]
 pub(crate) async fn fetch_subscription(url: &str, format: &TargetFormat) -> Result<String, String> {
     let user_agent = match format {
         TargetFormat::Clash => "ClashforWindows/0.20.39",
@@ -813,6 +818,13 @@ pub(crate) async fn fetch_subscription(url: &str, format: &TargetFormat) -> Resu
         TargetFormat::Subscription | TargetFormat::V2ray => "Hiddify/1.0.0",
     };
 
+    fetch_subscription_with_user_agent(url, user_agent).await
+}
+
+pub(crate) async fn fetch_subscription_with_user_agent(
+    url: &str,
+    user_agent: &str,
+) -> Result<String, String> {
     fetch_remote_text(url, user_agent, "subscription", 2 * 1024 * 1024).await
 }
 
@@ -1386,13 +1398,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fetch_remote_text_with_passes_user_agent_to_fetcher() {
+        let text = fetch_remote_text_with(
+            "http://93.184.216.34/start",
+            "v2rayng",
+            "test response",
+            1024,
+            |_url: Url, user_agent: String| async move {
+                assert_eq!(user_agent, "v2rayng");
+                Ok(FetchOutcome::Body(b"ok".to_vec()))
+            },
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(text, "ok");
+    }
+
+    #[tokio::test]
     async fn test_fetch_remote_text_rejects_private_redirect_target() {
         let err = fetch_remote_text_with(
             "http://93.184.216.34/start",
             "test-agent/1.0",
             "test response",
             1024,
-            |url: Url| async move {
+            |url: Url, _user_agent: String| async move {
                 if url.as_str() == "http://93.184.216.34/start" {
                     Ok(FetchOutcome::Redirect(
                         "http://127.0.0.1/private".to_string(),
