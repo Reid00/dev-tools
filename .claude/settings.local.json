@@ -103,7 +103,24 @@
       "WebFetch(domain:hiddify.org)",
       "WebFetch(domain:hiddifynext.app)",
       "WebFetch(domain:sourceforge.net)",
-      "Read(//c/Personal/Rust/dev-tools/.claude/worktrees/agent-a9c14e3d/src/tools/**)"
+      "Read(//c/Personal/Rust/dev-tools/.claude/worktrees/agent-a9c14e3d/src/tools/**)",
+      "Bash(printenv ZELLIJ *)",
+      "Bash(zellij *)",
+      "Bash(bash *)",
+      "Bash(pwsh *)",
+      "Bash(command -v alacritty)",
+      "Bash(alacritty --version)",
+      "Bash(timeout 8s alacritty *)",
+      "Bash(alacritty *)",
+      "Bash(powershell.exe *)",
+      "Bash(bash.exe *)",
+      "Skill(update-config)",
+      "Bash(timeout 8s env *)",
+      "Bash(where.exe *)",
+      "Bash(command -v zellij)",
+      "mcp__plugin_playwright_playwright__browser_click",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "mcp__plugin_playwright_playwright__browser_close"
     ]
   }
 }

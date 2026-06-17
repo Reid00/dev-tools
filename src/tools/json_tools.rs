@@ -76,6 +76,19 @@ pub struct MinifyResponse {
     pub minified_size: usize,
 }
 
+#[derive(Deserialize)]
+pub struct StringValueRequest {
+    pub input: String,
+}
+
+#[derive(Serialize)]
+pub struct StringValueResponse {
+    pub result: String,
+    pub chars: usize,
+    pub bytes: usize,
+    pub success: bool,
+}
+
 // ── Helper functions ───────────────────────────────────────────────
 
 fn count_depth(val: &Value) -> usize {
@@ -680,6 +693,16 @@ async fn minify_json(Json(req): Json<MinifyRequest>) -> Json<MinifyResponse> {
     }
 }
 
+async fn json_string_value(Json(req): Json<StringValueRequest>) -> Json<StringValueResponse> {
+    let result = serde_json::to_string(&req.input).unwrap_or_default();
+    Json(StringValueResponse {
+        result,
+        chars: req.input.chars().count(),
+        bytes: req.input.len(),
+        success: true,
+    })
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn router() -> Router {
@@ -689,6 +712,7 @@ pub fn router() -> Router {
         .route("/py-dict", post(py_dict_to_json))
         .route("/compare", post(compare_json))
         .route("/minify", post(minify_json))
+        .route("/string-value", post(json_string_value))
 }
 
 // ── Tests ──────────────────────────────────────────────────────────
@@ -966,6 +990,19 @@ mod tests {
         compare_values(&v1, &v2, "", &mut diffs);
         assert_eq!(diffs.len(), 1);
         assert!(diffs[0].contains("删除"));
+    }
+
+    // ── Handler: json_string_value ─────────────────────────────
+
+    #[tokio::test]
+    async fn test_handler_string_value_escapes_text_for_json_value() {
+        let input = "第一行\nsecond \"quoted\"\r\npath\\file\t结束";
+        let (_, json) = post_json("/string-value", serde_json::json!({"input": input})).await;
+
+        assert!(json["success"].as_bool().unwrap());
+        assert_eq!(json["result"], serde_json::to_string(input).unwrap());
+        let parsed: String = serde_json::from_str(json["result"].as_str().unwrap()).unwrap();
+        assert_eq!(parsed, input);
     }
 
     // ── Handler: format_json ──────────────────────────────────

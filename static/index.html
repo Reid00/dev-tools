@@ -429,6 +429,7 @@
                     <button onclick="jsonMinify()" class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors">压缩</button>
                     <button onclick="jsonValidate()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg text-sm font-medium transition-colors">校验</button>
                     <button onclick="jsonFormat(true)" class="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition-colors">键排序</button>
+                    <button onclick="jsonStringValue()" class="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-medium transition-colors" title="将任意文本转成 JSON 字符串 value">文本转Value</button>
                     <label class="flex items-center gap-1 text-sm text-gray-500 cursor-pointer ml-2">
                         <input type="checkbox" id="json-pydict-mode" class="w-4 h-4 rounded">
                         <span>Dict转JSON</span>
@@ -458,7 +459,7 @@
                 <div id="json-panels-container" class="json-panels-container">
                     <div id="json-input-panel" class="json-panel">
                         <div class="flex items-center justify-between mb-2">
-                            <label class="text-sm font-medium text-gray-600">输入 JSON <span class="text-gray-400 font-normal">(支持 # 注释)</span></label>
+                            <label class="text-sm font-medium text-gray-600">输入 JSON / 文本 <span class="text-gray-400 font-normal">(文本转Value支持多种换行、引号、反斜杠)</span></label>
                             <div class="flex gap-1">
                                 <button onclick="copyText(document.getElementById('json-input').value, event)" class="copy-btn text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">复制</button>
                                 <button onclick="clearJsonInput()" class="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition-colors">清空</button>
@@ -469,7 +470,7 @@
                                 <div class="line-num">1</div>
                             </div>
                             <div class="json-input-wrapper">
-                                <textarea id="json-input" placeholder="在此粘贴 JSON...&#10;支持 # 开头的注释行" oninput="updateJsonInputLineNums()" onscroll="syncJsonInputScroll()"></textarea>
+                                <textarea id="json-input" placeholder="在此粘贴 JSON，或粘贴要转成 JSON value 的原始文本...&#10;例如：他说 &quot;Hello&quot;&#10;下一行会被转换为 \n" oninput="updateJsonInputLineNums()" onscroll="syncJsonInputScroll()"></textarea>
                             </div>
                         </div>
                     </div>
@@ -1670,6 +1671,17 @@
                 if (data.error_position) errMsg += ` (位置: ${data.error_position})`;
                 showJsonError(errMsg);
             }
+        } catch(e) {}
+    }
+
+    async function jsonStringValue() {
+        const input = document.getElementById('json-input').value;
+        try {
+            const data = await apiCall('/api/json/string-value', { input: input });
+            updateJsonOutput(data.result);
+            document.getElementById('json-error').classList.add('hidden');
+            document.getElementById('json-stats').classList.add('hidden');
+            showToast(`已转换为 JSON value，${data.chars} 字符 / ${data.bytes} B`, 'success');
         } catch(e) {}
     }
 
