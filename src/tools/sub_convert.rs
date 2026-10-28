@@ -46,6 +46,8 @@ pub struct ConvertRequest {
     pub file: Option<String>,
     #[serde(default)]
     pub ua: Option<String>,
+    #[serde(default)]
+    pub skip_unsupported: bool,
 }
 
 #[derive(Deserialize)]
@@ -53,11 +55,28 @@ pub struct ConfigQuery {
     source: String,
     template: Option<String>,
     ua: Option<String>,
+    #[serde(default)]
+    skip_unsupported: bool,
 }
 
 struct ConversionError {
     status: StatusCode,
     message: String,
+    skipped_nodes: Vec<parser::SkippedNode>,
+}
+
+impl ConversionError {
+    fn with_skipped(mut self, mut skipped_nodes: Vec<parser::SkippedNode>) -> Self {
+        skipped_nodes.sort_by_key(|node| node.index);
+        self.skipped_nodes = skipped_nodes;
+        self
+    }
+
+    fn response(self) -> ConvertResponse {
+        let mut response = error_response(self.message);
+        response.skipped_nodes = self.skipped_nodes;
+        response
+    }
 }
 
 impl From<String> for ConversionError {
@@ -65,6 +84,7 @@ impl From<String> for ConversionError {
         Self {
             status: StatusCode::UNPROCESSABLE_ENTITY,
             message,
+            skipped_nodes: Vec::new(),
         }
     }
 }
@@ -78,6 +98,7 @@ impl From<validate::ValidationError> for ConversionError {
                 StatusCode::UNPROCESSABLE_ENTITY
             },
             message: error.message,
+            skipped_nodes: Vec::new(),
         }
     }
 }
@@ -103,6 +124,7 @@ pub struct ConvertResponse {
     pub outbounds_count: usize,
     pub template_info: Option<TemplateInfoResponse>,
     pub validation: Option<validate::ValidationInfo>,
+    pub skipped_nodes: Vec<parser::SkippedNode>,
     pub error: Option<String>,
 }
 
@@ -121,7 +143,7 @@ async fn convert_subscription(
     };
     match convert_subscription_inner(req).await {
         Ok(response) => (StatusCode::OK, Json(response)),
-        Err(error) => (error.status, Json(error_response(error.message))),
+        Err(error) => (error.status, Json(error.response())),
     }
 }
 
@@ -158,16 +180,23 @@ async fn convert_subscription_inner(
         Some(url) => runtime::fetch_subscription_with_user_agent(url, user_agent).await?,
         None => content_input.to_string(),
     };
-    let nodes = parser::parse_subscription_content(&source_content)?;
-    if nodes.is_empty() {
-        return Err("订阅中没有可转换的节点".to_string().into());
-    }
-    if nodes.len() > 2000 {
+    let entries = parser::parse_subscription_entries(&source_content)?;
+    if entries.len() > 2000 {
         return Err("订阅节点超过 2000 个，请拆分订阅后重试".to_string().into());
     }
     let template_text = template::load_template_text(&resolved_template).await?;
-    let rendered = render::render_template(&template_text, &nodes)?;
-    let validation = validate::check_config(&rendered).await?;
+    let ValidatedNodes {
+        config: rendered,
+        validation,
+        nodes,
+        skipped_nodes,
+    } = convert_nodes(
+        &template_text,
+        entries,
+        req.skip_unsupported,
+        validate::check_config,
+    )
+    .await?;
     let preview_content = serde_json::to_string_pretty(&rendered)
         .map_err(|_| "无法序列化 sing-box 配置".to_string())?;
     let outbounds_count = rendered["outbounds"].as_array().map_or(0, Vec::len);
@@ -181,7 +210,12 @@ async fn convert_subscription_inner(
         }
     }
     let subscription_path = subscription_url.as_deref().map(|url| {
-        publish::build_config_path(url, &template_file_value(&resolved_template), user_agent)
+        publish::build_config_path(
+            url,
+            &template_file_value(&resolved_template),
+            user_agent,
+            req.skip_unsupported,
+        )
     });
     Ok(ConvertResponse {
         success: true,
@@ -194,8 +228,112 @@ async fn convert_subscription_inner(
         outbounds_count,
         template_info: Some(template_info_response(&resolved_template)),
         validation: Some(validation),
+        skipped_nodes,
         error: None,
     })
+}
+
+struct ValidatedNodes {
+    config: serde_json::Value,
+    validation: validate::ValidationInfo,
+    nodes: Vec<types::ProxyNode>,
+    skipped_nodes: Vec<parser::SkippedNode>,
+}
+
+async fn convert_nodes(
+    template_text: &str,
+    entries: Vec<parser::ParsedNode>,
+    skip_unsupported: bool,
+    check: impl AsyncFn(
+        &serde_json::Value,
+    ) -> Result<validate::ValidationInfo, validate::ValidationError>,
+) -> Result<ValidatedNodes, ConversionError> {
+    let mut accepted = Vec::new();
+    let mut skipped = Vec::new();
+    for entry in entries {
+        let result = entry.result.and_then(|node| {
+            gen_singbox::node_to_singbox_outbound(&node).map_err(|error| {
+                format!(
+                    "第 {} 个节点「{}」（{}）无法转换：{error}",
+                    entry.index,
+                    node.name,
+                    node.protocol.protocol_str()
+                )
+            })?;
+            Ok(node)
+        });
+        match result {
+            Ok(node) => accepted.push((entry.index, node)),
+            Err(reason) if skip_unsupported => skipped.push(parser::SkippedNode {
+                index: entry.index,
+                name: entry.name,
+                reason,
+            }),
+            Err(reason) => return Err(reason.into()),
+        }
+    }
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        if accepted.is_empty() {
+            return Err(ConversionError::from(format!(
+                "过滤后没有可转换节点，已过滤 {} 个节点，请查看过滤原因或更换订阅",
+                skipped.len()
+            ))
+            .with_skipped(skipped));
+        }
+        let nodes = accepted
+            .iter()
+            .map(|(_, node)| node.clone())
+            .collect::<Vec<_>>();
+        let config = render::render_template(template_text, &nodes)
+            .map_err(|error| ConversionError::from(error).with_skipped(skipped.clone()))?;
+        let result = tokio::time::timeout_at(deadline, check(&config)).await;
+        let result = match result {
+            Ok(result) => result,
+            Err(_) => {
+                return Err(ConversionError {
+                    status: StatusCode::SERVICE_UNAVAILABLE,
+                    message: "节点过滤校验超过 30 秒，请拆分订阅后重试".to_string(),
+                    skipped_nodes: skipped,
+                });
+            }
+        };
+        match result {
+            Ok(validation) => {
+                skipped.sort_by_key(|node| node.index);
+                return Ok(ValidatedNodes {
+                    config,
+                    validation,
+                    nodes,
+                    skipped_nodes: skipped,
+                });
+            }
+            Err(error) => {
+                let template_outbounds = config["outbounds"]
+                    .as_array()
+                    .expect("rendered outbounds")
+                    .len()
+                    - nodes.len();
+                let node_index = error
+                    .outbound_index
+                    .and_then(|index| index.checked_sub(template_outbounds))
+                    .filter(|index| *index < accepted.len());
+                if skip_unsupported
+                    && !error.unavailable
+                    && let Some(node_index) = node_index
+                {
+                    let (index, node) = accepted.remove(node_index);
+                    skipped.push(parser::SkippedNode {
+                        index,
+                        name: node.name,
+                        reason: error.message,
+                    });
+                } else {
+                    return Err(ConversionError::from(error).with_skipped(skipped));
+                }
+            }
+        }
+    }
 }
 
 async fn config(
@@ -219,6 +357,7 @@ async fn config(
         template: query.template,
         file: None,
         ua: query.ua,
+        skip_unsupported: query.skip_unsupported,
     })
     .await;
     let mut response = match response {
@@ -235,7 +374,7 @@ async fn config(
             )
                 .into_response()
         }
-        Err(error) => (error.status, Json(error_response(error.message))).into_response(),
+        Err(error) => (error.status, Json(error.response())).into_response(),
     };
     response
         .headers_mut()
@@ -289,6 +428,7 @@ fn error_response(error: String) -> ConvertResponse {
         outbounds_count: 0,
         template_info: None,
         validation: None,
+        skipped_nodes: Vec::new(),
         error: Some(error),
     }
 }
@@ -309,6 +449,184 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose::STANDARD};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
+
+    async fn valid_test_config(
+        _: &serde_json::Value,
+    ) -> Result<validate::ValidationInfo, validate::ValidationError> {
+        Ok(validate::ValidationInfo {
+            engine: "test",
+            version: "test".to_string(),
+            checked: true,
+        })
+    }
+
+    #[tokio::test]
+    async fn filtering_keeps_valid_nodes_and_original_indexes() {
+        let content = concat!(
+            "# comment\n",
+            "trojan://secret@example.com:443#Good\n",
+            "tuic://secret@example.com:443#Unsupported\n",
+            "vless://bad-uuid@example.com:443#InvalidUUID\n",
+            "anytls://secret@example.com:443?type=grpc#BadTransport"
+        );
+        let template =
+            template::builtin_template_content("config_template_groups_rule_set_tun").unwrap();
+        let strict = convert_nodes(
+            template,
+            parser::parse_subscription_entries(content).unwrap(),
+            false,
+            valid_test_config,
+        )
+        .await
+        .err()
+        .unwrap();
+        assert!(strict.message.contains("第 3 行"));
+        let result = convert_nodes(
+            template,
+            parser::parse_subscription_entries(content).unwrap(),
+            true,
+            valid_test_config,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{}", error.message));
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.nodes[0].name, "Good");
+        assert_eq!(
+            result
+                .skipped_nodes
+                .iter()
+                .map(|node| node.index)
+                .collect::<Vec<_>>(),
+            vec![3, 4, 5]
+        );
+        assert_eq!(result.skipped_nodes[0].name, "Unsupported");
+        assert!(result.skipped_nodes[1].reason.contains("UUID"));
+        assert_eq!(
+            result.config["outbounds"][1]["outbounds"],
+            serde_json::json!(["Good"])
+        );
+    }
+
+    #[tokio::test]
+    async fn filtering_clash_nodes_does_not_abort_at_the_first_unsupported_entry() {
+        let source = "proxies:\n  - {name: Good, type: trojan, server: example.com, port: 443, password: secret}\n  - {name: Unknown, type: tuic}\n  - {name: Bad, type: vless, server: example.com, port: 443, uuid: bad}\n  - {name: 日本-优化, type: trojan, server: example.com, port: 443, password: secret, network: ws, ws-path: /ws}";
+        let template =
+            template::builtin_template_content("config_template_groups_rule_set_tun").unwrap();
+        let result = convert_nodes(
+            template,
+            parser::parse_subscription_entries(source).unwrap(),
+            true,
+            valid_test_config,
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{}", error.message));
+        assert_eq!(
+            result
+                .nodes
+                .iter()
+                .map(|node| node.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Good", "日本-优化"]
+        );
+        assert_eq!(
+            result
+                .skipped_nodes
+                .iter()
+                .map(|node| node.index)
+                .collect::<Vec<_>>(),
+            vec![2, 3]
+        );
+        assert_eq!(result.nodes[1].transport_path, "/ws");
+    }
+
+    #[tokio::test]
+    async fn filtering_native_errors_removes_only_the_attributed_node_and_rebuilds_groups() {
+        let source = "trojan://secret@example.com:443#Good\nss://bad-cipher:secret@example.com:8388#InvalidCipher";
+        let template =
+            template::builtin_template_content("config_template_groups_rule_set_tun").unwrap();
+        let checks = std::sync::atomic::AtomicUsize::new(0);
+        let result = convert_nodes(
+            template,
+            parser::parse_subscription_entries(source).unwrap(),
+            true,
+            async |config: &serde_json::Value| {
+                checks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                let outbounds = config["outbounds"].as_array().unwrap();
+                if let Some(index) = outbounds
+                    .iter()
+                    .position(|outbound| outbound["tag"] == "InvalidCipher")
+                {
+                    return Err(validate::ValidationError {
+                        unavailable: false,
+                        message: "invalid method".to_string(),
+                        outbound_index: Some(index),
+                    });
+                }
+                validate::validate_references(config).unwrap();
+                valid_test_config(config).await
+            },
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{}", error.message));
+        assert_eq!(checks.load(std::sync::atomic::Ordering::Relaxed), 2);
+        assert_eq!(result.nodes.len(), 1);
+        assert_eq!(result.skipped_nodes[0].index, 2);
+        assert_eq!(result.skipped_nodes[0].name, "InvalidCipher");
+        assert_eq!(
+            result.config["outbounds"][1]["outbounds"],
+            serde_json::json!(["Good"])
+        );
+    }
+
+    #[tokio::test]
+    async fn filtering_does_not_swallow_engine_or_template_errors() {
+        let source = "trojan://secret@example.com:443#Good\ntuic://secret@example.com:443#Bad";
+        let template =
+            template::builtin_template_content("config_template_groups_rule_set_tun").unwrap();
+        for (unavailable, outbound_index, expected_status) in [
+            (true, Some(3), StatusCode::SERVICE_UNAVAILABLE),
+            (false, Some(0), StatusCode::UNPROCESSABLE_ENTITY),
+            (false, None, StatusCode::UNPROCESSABLE_ENTITY),
+        ] {
+            let error = convert_nodes(
+                template,
+                parser::parse_subscription_entries(source).unwrap(),
+                true,
+                async |_: &serde_json::Value| {
+                    Err(validate::ValidationError {
+                        unavailable,
+                        message: "engine or template failure".to_string(),
+                        outbound_index,
+                    })
+                },
+            )
+            .await
+            .err()
+            .unwrap();
+            assert_eq!(error.status, expected_status);
+            assert_eq!(error.skipped_nodes.len(), 1);
+            assert_eq!(error.skipped_nodes[0].name, "Bad");
+            assert_eq!(error.message, "engine or template failure");
+        }
+    }
+
+    #[tokio::test]
+    async fn all_filtered_nodes_return_json_diagnostics_without_a_config() {
+        let (status, response) = post_convert(serde_json::json!({
+            "subscription_content":"tuic://secret@example.com:443#Bad\nanytls://secret@example.com:443?type=grpc#AlsoBad",
+            "skip_unsupported":true,
+        })).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(response["error"].as_str().unwrap().contains("过滤后没有"));
+        assert_eq!(response["skipped_nodes"].as_array().unwrap().len(), 2);
+        assert!(response["preview_content"].is_null());
+        assert!(!response.to_string().contains("secret"));
+        let (status, _) = post_convert(
+            serde_json::json!({"subscription_content":"proxies: [", "skip_unsupported":true}),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
 
     async fn post_convert_raw(body: serde_json::Value) -> (StatusCode, String) {
         let app = router();

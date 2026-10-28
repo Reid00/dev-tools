@@ -1,7 +1,15 @@
 use super::types::{ProxyNode, ProxyProtocol, TransportType};
 use serde_yaml::Mapping;
 
+#[cfg(test)]
 pub fn parse_clash_yaml(content: &str) -> Result<Vec<ProxyNode>, String> {
+    parse_clash_entries(content)?
+        .into_iter()
+        .map(|entry| entry.result)
+        .collect()
+}
+
+pub(crate) fn parse_clash_entries(content: &str) -> Result<Vec<super::parser::ParsedNode>, String> {
     let yaml: serde_yaml::Value = serde_yaml::from_str(content).map_err(|error| {
         let location = error
             .location()
@@ -19,27 +27,57 @@ pub fn parse_clash_yaml(content: &str) -> Result<Vec<ProxyNode>, String> {
     if proxies.is_empty() {
         return Err("Clash proxies 数组为空，没有可转换的节点".to_string());
     }
-    proxies
+    Ok(proxies
         .iter()
         .enumerate()
         .map(|(index, value)| {
-            let proxy = value
-                .as_mapping()
-                .ok_or_else(|| format!("Clash 第 {} 个节点：必须是对象", index + 1))?;
-            let name = get_str(proxy, "name").unwrap_or("未命名");
+            let name = value
+                .get("name")
+                .and_then(serde_yaml::Value::as_str)
+                .unwrap_or("未命名")
+                .to_string();
             let context = format!("Clash 第 {} 个节点「{name}」", index + 1);
-            clash_proxy_to_node(proxy).map_err(|error| format!("{context}：{error}"))
+            let result = value
+                .as_mapping()
+                .ok_or_else(|| "必须是对象".to_string())
+                .and_then(clash_proxy_to_node)
+                .map_err(|error| format!("{context}：{error}"));
+            super::parser::ParsedNode {
+                index: index + 1,
+                name,
+                result,
+            }
         })
-        .collect()
+        .collect())
 }
 
 fn clash_proxy_to_node(proxy: &Mapping) -> Result<ProxyNode, String> {
+    let mut normalized = proxy.clone();
+    for (legacy, current) in [("ws-path", "path"), ("ws-headers", "headers")] {
+        if let Some(value) = normalized.remove(legacy) {
+            let options = normalized
+                .entry("ws-opts".into())
+                .or_insert_with(|| serde_yaml::Value::Mapping(Mapping::new()))
+                .as_mapping_mut()
+                .ok_or("ws-opts 必须为对象")?;
+            if options
+                .get(current)
+                .is_some_and(|existing| existing != &value)
+            {
+                return Err(format!(
+                    "{legacy} 与 ws-opts.{current} 冲突，请保留一种写法"
+                ));
+            }
+            options.insert(current.into(), value);
+        }
+    }
+    let proxy = &normalized;
     let proxy_type = get_required_str(proxy, "type", "缺少字符串字段 type")?;
     if !matches!(
         proxy_type,
         "vmess" | "vless" | "trojan" | "ss" | "ssr" | "hysteria2" | "hy2" | "anytls"
     ) {
-        return Err("不支持此 type，无法转换为 sing-box；未跳过任何节点".to_string());
+        return Err("不支持此 type，无法转换为 sing-box".to_string());
     }
     let name = get_str(proxy, "name").unwrap_or("proxy");
     let server = get_required_str(proxy, "server", "缺少字符串字段 server")?;
@@ -781,6 +819,22 @@ fn parse_clash_anytls(proxy: &Mapping, name: &str, server: &str, port: u16) -> O
 mod tests {
     use super::super::types::{ProxyProtocol, TransportType};
     use super::parse_clash_yaml;
+
+    #[test]
+    fn legacy_websocket_options_are_preserved_and_conflicts_rejected() {
+        let yaml = "proxies:\n  - name: 日本-优化\n    type: trojan\n    server: example.com\n    port: 443\n    password: secret\n    network: ws\n    ws-path: /legacy\n    ws-headers: {Host: cdn.example.com}";
+        let nodes = parse_clash_yaml(yaml).unwrap();
+        let node = &nodes[0];
+        assert_eq!(node.transport, TransportType::Ws);
+        assert_eq!(node.transport_path, "/legacy");
+        assert_eq!(node.transport_host, "cdn.example.com");
+        let conflict = format!("{yaml}\n    ws-opts: {{path: /other}}");
+        assert!(parse_clash_yaml(&conflict).unwrap_err().contains("冲突"));
+        let wrong_network = yaml.replace("network: ws", "network: tcp");
+        assert!(parse_clash_yaml(&wrong_network).is_err());
+        let bad_headers = yaml.replace("Host: cdn.example.com", "Custom: value");
+        assert!(parse_clash_yaml(&bad_headers).is_err());
+    }
 
     #[test]
     fn test_parse_clash_vmess_ws_tls_preserves_transport_and_tls_fields() {

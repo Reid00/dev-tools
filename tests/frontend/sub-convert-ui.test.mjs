@@ -52,7 +52,7 @@ function extractNamedFunctionSource(html, functionName) {
   assert.fail(`Could not extract ${functionName} from static/index.html`);
 }
 
-function loadSubscriptionGlobals({ subscriptionUrl = 'https://example.com/sub', template = 'singbox', sourceType = 'url', subscriptionContent = '' } = {}) {
+function loadSubscriptionGlobals({ subscriptionUrl = 'https://example.com/sub', template = 'singbox', sourceType = 'url', subscriptionContent = '', skipUnsupported = false } = {}) {
   const html = readHtml();
   const script = ['getSubPayloadFromInputs', 'formatTemplateBadgeText']
     .map((name) => extractNamedFunctionSource(html, name))
@@ -61,6 +61,7 @@ function loadSubscriptionGlobals({ subscriptionUrl = 'https://example.com/sub', 
   const elements = {
     'sub-source-type': { value: sourceType },
     'sub-content': { value: subscriptionContent },
+    'sub-skip-unsupported': { checked: skipUnsupported },
     'sub-url': { value: subscriptionUrl },
     'sub-template': { value: template },
     'sub-ua': { value: 'surge' },
@@ -101,6 +102,7 @@ test('getSubPayloadFromInputs sends the unchanged subscription URL and selected 
     template: '5',
     file: '5',
     ua: 'surge',
+    skip_unsupported: false,
   });
 });
 
@@ -114,7 +116,22 @@ test('getSubPayloadFromInputs sends only pasted content and template in content 
     subscription_content: 'trojan://secret@proxy.example.com:443#node',
     template: '1',
     file: '1',
+    skip_unsupported: false,
   });
+});
+
+test('unsupported node filtering is unchecked by default and submitted in either input mode', () => {
+  const checkbox = readHtml().match(/<input\b[^>]*\bid="sub-skip-unsupported"[^>]*>/)?.[0];
+  assert.ok(checkbox);
+  assert.doesNotMatch(checkbox, /\bchecked\b/);
+  for (const sourceType of ['url', 'content']) {
+    const { getSubPayloadFromInputs } = loadSubscriptionGlobals({
+      sourceType,
+      subscriptionContent: 'trojan://secret@proxy.example.com:443',
+      skipUnsupported: true,
+    });
+    assert.equal(getSubPayloadFromInputs().skip_unsupported, true);
+  }
 });
 
 test('formatTemplateBadgeText labels builtin templates', () => {
@@ -164,10 +181,11 @@ function createClassList(initial = []) {
   };
 }
 
-function createElement({ value = '', textContent = '', hidden = false } = {}) {
+function createElement({ value = '', textContent = '', hidden = false, checked = false } = {}) {
   return {
     value,
     textContent,
+    checked,
     className: '',
     disabled: false,
     style: {},
@@ -194,6 +212,7 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
       'formatTemplateBadgeText',
       'loadSubTemplates',
       'updateSubTemplateCard',
+      'displaySubSkippedNodes',
       'clearSubResultState',
       'convertSubscription',
       'displaySubResult',
@@ -205,6 +224,10 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
   const elements = {
     'sub-source-type': createElement({ value: 'url' }),
     'sub-content': createElement(),
+    'sub-skip-unsupported': createElement(),
+    'sub-skipped-section': createElement({ hidden: true }),
+    'sub-skipped-title': createElement(),
+    'sub-skipped-list': createElement(),
     'sub-content-input': createElement({ hidden: true }),
     'sub-url-input': createElement(),
     'sub-url-options': createElement(),
@@ -379,6 +402,7 @@ test('subscription UI loads templates, converts, then clears stale result on fai
     template: 'remote-template',
     file: 'remote-template',
     ua: 'clashmeta',
+    skip_unsupported: false,
   });
   assert.equal(ui.currentSubContent, '{"outbounds":[{"tag":"proxy"}]}');
   assert.equal(ui.currentSubscriptionLink, 'https://tools.example/api/sub/download/abc');
@@ -489,7 +513,7 @@ test('subscription content mode hides URL settings and submits pasted content wi
   assert.equal(ui.elements['sub-content-input'].classList.contains('hidden'), false);
   await ui.convertSubscription();
   assert.deepEqual(JSON.parse(ui.calls[0].options.body), {
-    subscription_content: 'trojan://secret@proxy.example.com:443#node', template: '1', file: '1',
+    subscription_content: 'trojan://secret@proxy.example.com:443#node', template: '1', file: '1', skip_unsupported: false,
   });
   assert.equal(ui.currentSubscriptionLink, '');
   assert.equal(ui.elements['sub-link-section'].classList.contains('hidden'), true);
@@ -508,6 +532,82 @@ test('subscription content mode hides URL settings and submits pasted content wi
   assert.equal(ui.elements['sub-url-options'].classList.contains('hidden'), false);
   assert.equal(ui.elements['sub-content-input'].classList.contains('hidden'), true);
   assert.equal(ui.currentSubContent, '');
+});
+
+test('filtered conversion displays escaped diagnostics and retains backend update link', async () => {
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [{ body: {
+    success: true,
+    format: 'singbox',
+    preview_content: '{"outbounds":[{"tag":"good"}]}',
+    subscription_path: '/api/sub/config?source=encoded&skip_unsupported=true',
+    proxies: [{ name: 'good', protocol: 'trojan', server: 'proxy.example.com', port: 443 }],
+    skipped_nodes: [{ index: 5, name: '<img src=x onerror=alert(1)>', reason: '不支持参数 <script>alert(1)</script>' }],
+  } }] });
+  ui.elements['sub-skip-unsupported'].checked = true;
+  await ui.convertSubscription();
+  assert.equal(JSON.parse(ui.calls[0].options.body).skip_unsupported, true);
+  assert.equal(ui.elements['sub-skipped-section'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-skipped-title'].textContent, '已过滤 1 个无法转换的节点');
+  assert.match(ui.elements['sub-skipped-list'].innerHTML, /第 5 项/);
+  assert.match(ui.elements['sub-skipped-list'].innerHTML, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(ui.elements['sub-skipped-list'].innerHTML, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(ui.elements['sub-skipped-list'].innerHTML, /<img|<script/);
+  assert.equal(ui.currentSubscriptionLink, 'https://tools.example/api/sub/config?source=encoded&skip_unsupported=true');
+  assert.equal(ui.elements['sub-output-section'].classList.contains('hidden'), false);
+});
+
+test('all filtered nodes keep current diagnostics visible on failure and clear them on the next request', async () => {
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [
+    { ok: false, status: 422, body: {
+      success: false,
+      error: '过滤后没有可转换的节点',
+      skipped_nodes: [{ index: 1, name: '日本-优化', reason: '不支持参数 ws-path' }, { index: 2, name: '', reason: '不支持此节点协议' }],
+    } },
+    { ok: false, status: 503, body: { success: false, error: '校验内核不可用' } },
+  ] });
+  ui.elements['sub-skip-unsupported'].checked = true;
+  await ui.convertSubscription();
+  assert.equal(ui.elements['sub-error'].textContent, '过滤后没有可转换的节点');
+  assert.equal(ui.elements['sub-error'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-skipped-section'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-skipped-title'].textContent, '已过滤 2 个无法转换的节点');
+  assert.match(ui.elements['sub-skipped-list'].innerHTML, /日本-优化/);
+  assert.match(ui.elements['sub-skipped-list'].innerHTML, /不支持参数 ws-path/);
+  assert.match(ui.elements['sub-skipped-list'].innerHTML, /第 2 项/);
+  assert.equal(ui.elements['sub-output-section'].classList.contains('hidden'), true);
+  assert.equal(ui.currentSubContent, '');
+  await ui.convertSubscription();
+  assert.equal(ui.elements['sub-error'].textContent, '校验内核不可用');
+  assert.equal(ui.elements['sub-skipped-section'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-skipped-list'].innerHTML, '');
+  assert.equal(ui.elements['sub-skipped-title'].textContent, '');
+});
+
+test('filtered diagnostics clear on a clean result, empty input, and input mode changes', async () => {
+  const skipped_nodes = [{ index: 3, name: 'unsupported', reason: '无法转换' }];
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [
+    { body: { success: true, preview_content: '{}', skipped_nodes } },
+    { body: { success: true, preview_content: '{}' } },
+    { body: { success: true, preview_content: '{}', skipped_nodes } },
+    { body: { success: true, preview_content: '{}', skipped_nodes } },
+  ] });
+  await ui.convertSubscription();
+  assert.equal(ui.elements['sub-skipped-section'].classList.contains('hidden'), false);
+  await ui.convertSubscription();
+  assert.equal(ui.elements['sub-skipped-section'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-skipped-list'].innerHTML, '');
+  await ui.convertSubscription();
+  ui.elements['sub-url'].value = '';
+  await ui.convertSubscription();
+  assert.equal(ui.elements['sub-skipped-section'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-skipped-title'].textContent, '');
+  ui.elements['sub-url'].value = 'https://example.com/sub';
+  await ui.convertSubscription();
+  assert.equal(ui.elements['sub-skipped-section'].classList.contains('hidden'), false);
+  ui.elements['sub-source-type'].value = 'content';
+  ui.updateSubSourceType();
+  assert.equal(ui.elements['sub-skipped-section'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-skipped-list'].innerHTML, '');
 });
 
 test('empty pasted content shows a persistent error without making a request', async () => {

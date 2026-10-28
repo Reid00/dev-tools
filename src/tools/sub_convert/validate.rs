@@ -17,6 +17,7 @@ pub struct ValidationInfo {
 pub struct ValidationError {
     pub unavailable: bool,
     pub message: String,
+    pub outbound_index: Option<usize>,
 }
 
 impl ValidationError {
@@ -24,6 +25,7 @@ impl ValidationError {
         Self {
             unavailable: true,
             message: message.into(),
+            outbound_index: None,
         }
     }
 
@@ -31,6 +33,7 @@ impl ValidationError {
         Self {
             unavailable: false,
             message: message.into(),
+            outbound_index: None,
         }
     }
 }
@@ -94,16 +97,28 @@ pub async fn check_config(config: &Value) -> Result<ValidationInfo, ValidationEr
     .map_err(|_| ValidationError::unavailable("sing-box 配置校验超过 15 秒，请稍后重试"))?
     .map_err(|_| ValidationError::unavailable("sing-box 配置校验进程异常退出"))?;
     if !output.status.success() {
-        let detail = redact_diagnostic(&String::from_utf8_lossy(&output.stderr), config);
-        return Err(ValidationError::invalid(format!(
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        let detail = redact_diagnostic(&diagnostic, config);
+        let mut error = ValidationError::invalid(format!(
             "sing-box {version} 校验失败，未生成订阅。请修正节点或模板：\n{detail}"
-        )));
+        ));
+        error.outbound_index = diagnostic_outbound_index(&diagnostic);
+        return Err(error);
     }
     Ok(ValidationInfo {
         engine: "sing-box",
         version: version.to_string(),
         checked: true,
     })
+}
+
+fn diagnostic_outbound_index(message: &str) -> Option<usize> {
+    let diagnostic = message.lines().find(|line| line.contains("FATAL"))?;
+    let detail = diagnostic.split_once("] ")?.1;
+    let index = detail
+        .strip_prefix("initialize outbound[")
+        .or_else(|| detail.strip_prefix("decode config at stdin: outbounds["))?;
+    index.split_once(']')?.0.parse().ok()
 }
 
 fn redact_diagnostic(message: &str, config: &Value) -> String {
@@ -253,6 +268,32 @@ pub fn validate_references(config: &Value) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn native_diagnostics_only_attribute_explicit_outbound_errors() {
+        assert_eq!(
+            diagnostic_outbound_index("FATAL[0000] initialize outbound[3]: invalid public_key"),
+            Some(3)
+        );
+        assert_eq!(
+            diagnostic_outbound_index(
+                "FATAL[0000] decode config at stdin: outbounds[5].tls: unknown field"
+            ),
+            Some(5)
+        );
+        assert_eq!(
+            diagnostic_outbound_index("FATAL[0000] initialize inbound[3]: invalid port"),
+            None
+        );
+        assert_eq!(
+            diagnostic_outbound_index("WARN[0000] initialize outbound[3]: unsupported"),
+            None
+        );
+        assert_eq!(
+            diagnostic_outbound_index("FATAL[0000] initialize router: outbound[3] not found"),
+            None
+        );
+    }
 
     #[test]
     fn rejects_missing_members_duplicate_tags_and_cycles() {

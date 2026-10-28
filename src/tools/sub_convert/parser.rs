@@ -35,7 +35,28 @@ pub fn parse_proxy_url(url: &str) -> Result<ProxyNode, String> {
     }
 }
 
+pub struct ParsedNode {
+    pub index: usize,
+    pub name: String,
+    pub result: Result<ProxyNode, String>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct SkippedNode {
+    pub index: usize,
+    pub name: String,
+    pub reason: String,
+}
+
+#[cfg(test)]
 pub fn parse_subscription_content(content: &str) -> Result<Vec<ProxyNode>, String> {
+    parse_subscription_entries(content)?
+        .into_iter()
+        .map(|entry| entry.result)
+        .collect()
+}
+
+pub fn parse_subscription_entries(content: &str) -> Result<Vec<ParsedNode>, String> {
     let trimmed = content.trim().trim_start_matches('\u{feff}').trim();
     if trimmed.is_empty() {
         return Err("订阅内容为空，请检查订阅是否过期或链接是否正确".to_string());
@@ -55,7 +76,7 @@ pub fn parse_subscription_content(content: &str) -> Result<Vec<ProxyNode>, Strin
         );
     }
     if looks_like_clash_yaml(trimmed) {
-        return parse_clash::parse_clash_yaml(trimmed);
+        return parse_clash::parse_clash_entries(trimmed);
     }
     if trimmed.contains("://") || trimmed.starts_with('#') {
         return parse_proxy_lines(trimmed);
@@ -68,7 +89,7 @@ pub fn parse_subscription_content(content: &str) -> Result<Vec<ProxyNode>, Strin
         return Err("Base64 解码后的订阅内容为空".to_string());
     }
     if looks_like_clash_yaml(decoded) {
-        return parse_clash::parse_clash_yaml(decoded);
+        return parse_clash::parse_clash_entries(decoded);
     }
     if decoded.starts_with('<') {
         return Err("Base64 解码后的订阅是 HTML 页面，不包含节点数据".to_string());
@@ -76,27 +97,42 @@ pub fn parse_subscription_content(content: &str) -> Result<Vec<ProxyNode>, Strin
     parse_proxy_lines(decoded)
 }
 
-fn parse_proxy_lines(content: &str) -> Result<Vec<ProxyNode>, String> {
+fn parse_proxy_lines(content: &str) -> Result<Vec<ParsedNode>, String> {
     let mut nodes = Vec::new();
     for (index, line) in content.lines().enumerate() {
         let line = line.trim();
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if !SUPPORTED_PREFIXES
+        let result = if SUPPORTED_PREFIXES
             .iter()
             .any(|prefix| line.starts_with(prefix))
         {
-            return Err(format!(
+            parse_proxy_url(line)
+                .and_then(|node| {
+                    validate_required_fields(&node)?;
+                    Ok(node)
+                })
+                .map_err(|error| format!("第 {} 行节点解析失败：{error}", index + 1))
+        } else {
+            Err(format!(
                 "第 {} 行：不支持的节点协议或无效节点链接",
                 index + 1
-            ));
-        }
-        let node = parse_proxy_url(line)
-            .map_err(|error| format!("第 {} 行节点解析失败：{error}", index + 1))?;
-        validate_required_fields(&node)
-            .map_err(|error| format!("第 {} 行节点解析失败：{error}", index + 1))?;
-        nodes.push(node);
+            ))
+        };
+        let name = match &result {
+            Ok(node) => node.name.clone(),
+            Err(_) => line
+                .split_once('#')
+                .and_then(|(_, name)| urlencoding::decode(name).ok())
+                .map(|name| name.into_owned())
+                .unwrap_or_default(),
+        };
+        nodes.push(ParsedNode {
+            index: index + 1,
+            name,
+            result,
+        });
     }
     if nodes.is_empty() {
         return Err("订阅中没有节点；空行和注释不会被转换".to_string());
