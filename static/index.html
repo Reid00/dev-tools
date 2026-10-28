@@ -875,9 +875,24 @@
                             </div>
                         </details>
                         <div>
-                            <label for="sub-template" class="block text-sm text-gray-600 mb-1">模板</label>
+                            <label for="sub-template" class="block text-sm text-gray-600 mb-1">使用方案（模板）</label>
                             <select id="sub-template" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"></select>
+                            <p class="text-xs text-gray-500 mt-2">Android 日常使用保持默认即可，无需手动修改 DNS、路由或代理端口。</p>
                         </div>
+                        <details id="sub-template-help" class="border border-gray-200 rounded-lg p-3 text-sm text-gray-600">
+                            <summary class="cursor-pointer">模板是什么，如何选择？</summary>
+                            <div class="mt-3 space-y-2 leading-relaxed">
+                                <p>原始订阅通常只有节点的地址、密码和协议。模板补齐流量入口、DNS、分流规则和选节点方式，组合成 sing-box 能导入的完整配置；模板不是另一个机场，也不能修复失效节点。</p>
+                                <ul class="list-disc pl-5 space-y-2">
+                                    <li><strong>国内直连 · 国外代理：</strong>推荐 Android 使用。VPN/TUN 自动接入，按国内域名/IP 分流，不使用 FakeIP。</li>
+                                    <li><strong>TUN 全局代理 · FakeIP：</strong>除局域网外默认代理，以虚拟 IP 保留域名信息；部分应用可能不兼容。</li>
+                                    <li><strong>TUN 全局代理 · 精简：</strong>除局域网外默认代理，只保留手动选节点，无自动测速或国内分流。</li>
+                                    <li><strong>轻量代理 · 地区分组：</strong>只提供本机 HTTP/SOCKS 端口，应用需手动设置代理，不能自动代理 Android 全部应用。</li>
+                                    <li><strong>TUN 全局代理 · 地区分组：</strong>VPN/TUN 自动接入，除局域网外默认代理，可按节点名称选择地区。</li>
+                                </ul>
+                                <p>TUN 是流量进入 sing-box 的入口，不代表所有流量都走代理。Android 需授予 VPN 权限；桌面启用 TUN 通常需要管理员权限。配置面向 sing-box 1.14.x。</p>
+                            </div>
+                        </details>
                         <div id="sub-template-card" class="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm text-gray-600 hidden">
                             <div id="sub-template-badge" class="font-medium text-gray-700"></div>
                             <div id="sub-template-description" class="mt-1"></div>
@@ -931,6 +946,8 @@
                     <div id="sub-link-section" class="mb-4">
                         <label class="block text-xs text-gray-500 mb-1">订阅链接</label>
                         <div id="sub-link" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-mono break-all text-gray-700"></div>
+                        <p class="mt-2 text-sm text-gray-600">在 sing-box 1.14.x 中新建远程配置 → 粘贴此链接 → 下载配置并启动。Android 默认方案需授予 VPN 权限；后续更新此远程配置即可同步节点，无需导入原始订阅。</p>
+                        <p class="mt-1 text-xs text-gray-500">链接包含原订阅的访问凭证，请勿公开。远程规则下载和节点连通性仍取决于客户端网络。</p>
                     </div>
                     <div class="json-output-area w-full border border-gray-200 rounded-lg overflow-hidden" style="height:400px">
                         <div class="json-code-container h-full">
@@ -3199,8 +3216,7 @@ ${preview.innerHTML}
     }
 
     function formatTemplateBadgeText(templateInfo) {
-        const sourceText = templateInfo?.source === 'remote' ? '远程模板' : '内置模板';
-        return `${templateInfo?.name || '-'} · ${sourceText} · file=${templateInfo?.reference_value || '-'}`;
+        return `${templateInfo?.name || '-'} · 内置模板`;
     }
 
     async function loadSubTemplates() {
@@ -3238,8 +3254,7 @@ ${preview.innerHTML}
             return;
         }
 
-        const sourceText = templateInfo.source === 'remote' ? '远程模板' : '内置模板';
-        templateBadge.textContent = `${templateInfo.name || '-'} · ${sourceText}${templateInfo.sing_box_version ? ` · sing-box ${templateInfo.sing_box_version}` : ''}`;
+        templateBadge.textContent = `${formatTemplateBadgeText(templateInfo)}${templateInfo.sing_box_version ? ` · sing-box ${templateInfo.sing_box_version}` : ''}`;
         templateDescription.textContent = templateInfo.description || '';
         templateCard.classList.remove('hidden');
     }
@@ -3375,7 +3390,7 @@ ${preview.innerHTML}
         const validation = document.getElementById('sub-validation');
         if (validation) {
             validation.textContent = data.validation?.checked
-                ? `sing-box ${data.validation.version} 内核配置校验通过。配置校验通过不代表节点连通，请在客户端测试连接。`
+                ? `sing-box ${data.validation.version} 内核配置校验通过。已检查服务引用；此检查不启动 Android VPN，也不测试节点连通或远程规则下载。`
                 : '未提供内核校验结果，请勿将此配置视为已验证。';
             validation.className = data.validation?.checked
                 ? 'mb-4 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg text-sm text-emerald-800'

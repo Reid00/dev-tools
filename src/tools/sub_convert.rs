@@ -150,6 +150,21 @@ async fn convert_subscription(
 async fn convert_subscription_inner(
     req: ConvertRequest,
 ) -> Result<ConvertResponse, ConversionError> {
+    convert_subscription_with(
+        req,
+        runtime::fetch_subscription_with_user_agent,
+        validate::check_config,
+    )
+    .await
+}
+
+async fn convert_subscription_with(
+    req: ConvertRequest,
+    fetch: impl AsyncFn(&str, &str) -> Result<String, String>,
+    check: impl AsyncFn(
+        &serde_json::Value,
+    ) -> Result<validate::ValidationInfo, validate::ValidationError>,
+) -> Result<ConvertResponse, ConversionError> {
     let url_input = req.subscription_url.trim();
     let content_input = req.subscription_content.trim();
     if url_input.is_empty() == content_input.is_empty() {
@@ -177,7 +192,7 @@ async fn convert_subscription_inner(
         Some(source::validate_subscription_input(url_input)?)
     };
     let source_content = match subscription_url.as_deref() {
-        Some(url) => runtime::fetch_subscription_with_user_agent(url, user_agent).await?,
+        Some(url) => fetch(url, user_agent).await?,
         None => content_input.to_string(),
     };
     let entries = parser::parse_subscription_entries(&source_content)?;
@@ -190,13 +205,7 @@ async fn convert_subscription_inner(
         validation,
         nodes,
         skipped_nodes,
-    } = convert_nodes(
-        &template_text,
-        entries,
-        req.skip_unsupported,
-        validate::check_config,
-    )
-    .await?;
+    } = convert_nodes(&template_text, entries, req.skip_unsupported, check).await?;
     let preview_content = serde_json::to_string_pretty(&rendered)
         .map_err(|_| "无法序列化 sing-box 配置".to_string())?;
     let outbounds_count = rendered["outbounds"].as_array().map_or(0, Vec::len);
@@ -339,6 +348,21 @@ async fn convert_nodes(
 async fn config(
     query: Result<Query<ConfigQuery>, axum::extract::rejection::QueryRejection>,
 ) -> axum::response::Response {
+    config_with(
+        query,
+        runtime::fetch_subscription_with_user_agent,
+        validate::check_config,
+    )
+    .await
+}
+
+async fn config_with(
+    query: Result<Query<ConfigQuery>, axum::extract::rejection::QueryRejection>,
+    fetch: impl AsyncFn(&str, &str) -> Result<String, String>,
+    check: impl AsyncFn(
+        &serde_json::Value,
+    ) -> Result<validate::ValidationInfo, validate::ValidationError>,
+) -> axum::response::Response {
     let Query(query) = match query {
         Ok(query) => query,
         Err(_) => {
@@ -351,14 +375,18 @@ async fn config(
                 .into_response();
         }
     };
-    let response = convert_subscription_inner(ConvertRequest {
-        subscription_url: query.source,
-        subscription_content: String::new(),
-        template: query.template,
-        file: None,
-        ua: query.ua,
-        skip_unsupported: query.skip_unsupported,
-    })
+    let response = convert_subscription_with(
+        ConvertRequest {
+            subscription_url: query.source,
+            subscription_content: String::new(),
+            template: query.template,
+            file: None,
+            ua: query.ua,
+            skip_unsupported: query.skip_unsupported,
+        },
+        fetch,
+        check,
+    )
     .await;
     let mut response = match response {
         Ok(result) => {
@@ -458,6 +486,107 @@ mod tests {
             version: "test".to_string(),
             checked: true,
         })
+    }
+
+    #[tokio::test]
+    async fn published_link_returns_the_same_complete_config_and_updates_nodes() {
+        let source = "https://example.com/sub?token=a%2Bb%26c&x=1";
+        let checks = std::sync::atomic::AtomicUsize::new(0);
+        let preview = convert_subscription_with(
+            ConvertRequest {
+                subscription_url: source.to_string(),
+                subscription_content: String::new(),
+                template: None,
+                file: None,
+                ua: Some("clashmeta".to_string()),
+                skip_unsupported: true,
+            },
+            async |url, ua| {
+                assert_eq!(url, source);
+                assert_eq!(ua, "clashmeta");
+                Ok("trojan://secret@example.com:443#First".to_string())
+            },
+            async |config| {
+                validate::validate_references(config).unwrap();
+                checks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                valid_test_config(config).await
+            },
+        )
+        .await
+        .unwrap_or_else(|error| panic!("{}", error.message));
+        let path = preview.subscription_path.as_ref().unwrap();
+        let query: ConfigQuery = Query::try_from_uri(&path.parse().unwrap()).unwrap().0;
+        assert_eq!(query.source, source);
+        assert_eq!(query.template.as_deref(), Some("1"));
+        assert!(query.skip_unsupported);
+        let response = config_with(
+            Ok(Query(query)),
+            async |url, ua| {
+                assert_eq!(url, source);
+                assert_eq!(ua, "clashmeta");
+                Ok("trojan://secret@example.com:443#First".to_string())
+            },
+            async |config| {
+                validate::validate_references(config).unwrap();
+                checks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                valid_test_config(config).await
+            },
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[header::CONTENT_TYPE], JSON_CONTENT_TYPE);
+        assert_eq!(response.headers()[header::CACHE_CONTROL], "no-store");
+        assert_eq!(response.headers()[header::REFERRER_POLICY], "no-referrer");
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let config: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        let preview: serde_json::Value =
+            serde_json::from_str(preview.preview_content.as_ref().unwrap()).unwrap();
+        assert_eq!(config, preview);
+        assert!(config.get("success").is_none());
+        assert_eq!(config["inbounds"][0]["type"], "tun");
+        assert!(config["dns"]["servers"][0].get("detour").is_none());
+        assert_eq!(checks.load(std::sync::atomic::Ordering::Relaxed), 2);
+        let query = Query::try_from_uri(&path.parse().unwrap()).unwrap();
+        let response = config_with(
+            Ok(query),
+            async |_, _| Ok("trojan://secret@example.com:443#Updated\ntuic://secret@example.com:443#Unsupported".to_string()),
+            valid_test_config,
+        ).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let updated: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            updated["outbounds"][1]["outbounds"],
+            serde_json::json!(["Updated"])
+        );
+    }
+
+    #[tokio::test]
+    async fn published_link_never_returns_a_config_when_validation_fails() {
+        let response = config_with(
+            Ok(Query(ConfigQuery {
+                source: "https://example.com/sub".to_string(),
+                template: None,
+                ua: None,
+                skip_unsupported: true,
+            })),
+            async |_, _| Ok("trojan://secret@example.com:443#Good".to_string()),
+            async |_| {
+                Err(validate::ValidationError {
+                    unavailable: false,
+                    message: "DNS startup configuration rejected".to_string(),
+                    outbound_index: None,
+                })
+            },
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        let bytes = response.into_body().collect().await.unwrap().to_bytes();
+        let error: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(error["success"], false);
+        assert!(error["preview_content"].is_null());
+        assert!(error.get("outbounds").is_none());
+        assert!(error["error"].as_str().unwrap().contains("DNS"));
     }
 
     #[tokio::test]

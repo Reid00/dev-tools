@@ -2,7 +2,7 @@
   "log": { "level": "info", "timestamp": true },
   "dns": {
     "servers": [
-      { "type": "udp", "tag": "local", "server": "223.5.5.5", "detour": "direct" },
+      { "type": "udp", "tag": "local", "server": "223.5.5.5" },
       { "type": "https", "tag": "remote", "server": "1.1.1.1", "path": "/dns-query", "detour": "Proxy" }
     ],
     "rules": [

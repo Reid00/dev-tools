@@ -134,6 +134,15 @@ test('unsupported node filtering is unchecked by default and submitted in either
   }
 });
 
+test('subscription page explains templates and direct remote configuration import', () => {
+  const html = readHtml();
+  assert.match(html, /使用方案（模板）/);
+  assert.match(html, /模板补齐流量入口、DNS、分流规则和选节点方式/);
+  assert.match(html, /TUN 是流量进入 sing-box 的入口，不代表所有流量都走代理/);
+  assert.match(html, /新建远程配置 → 粘贴此链接 → 下载配置并启动/);
+  assert.match(html, /链接包含原订阅的访问凭证，请勿公开/);
+});
+
 test('formatTemplateBadgeText labels builtin templates', () => {
   const { formatTemplateBadgeText } = loadSubscriptionGlobals();
 
@@ -143,20 +152,21 @@ test('formatTemplateBadgeText labels builtin templates', () => {
       source: 'builtin',
       reference_value: '1',
     }),
-    'default · 内置模板 · file=1'
+    'default · 内置模板'
   );
 });
 
-test('formatTemplateBadgeText labels remote templates', () => {
+test('template badges do not present historical identifiers as client versions', () => {
   const { formatTemplateBadgeText } = loadSubscriptionGlobals();
 
   assert.equal(
     formatTemplateBadgeText({
-      name: 'custom',
-      source: 'remote',
-      reference_value: 'https://example.com/template.json',
+      name: '轻量代理 · 地区分组',
+      source: 'builtin',
+      id: 'sb-config-1.12',
+      reference_value: 'sb-config-1.12',
     }),
-    'custom · 远程模板 · file=https://example.com/template.json'
+    '轻量代理 · 地区分组 · 内置模板'
   );
 });
 
@@ -349,11 +359,13 @@ test('subscription UI loads templates, converts, then clears stale result on fai
             description: 'Default template',
           },
           {
-            name: 'Remote template',
-            reference_key: 'remote-template',
-            reference_value: 'https://example.com/template.json',
-            source: 'remote',
-            description: 'Remote template description',
+            name: '轻量代理 · 地区分组',
+            reference_key: 'sb-config-1.12',
+            reference_value: '4',
+            index: 4,
+            source: 'builtin',
+            sing_box_version: '1.14.x',
+            description: '本机 HTTP/SOCKS 端口，无 TUN',
           },
         ],
       },
@@ -368,9 +380,9 @@ test('subscription UI loads templates, converts, then clears stale result on fai
             { name: 'Proxy 1', protocol: 'vmess', server: 'server.example', port: 443 },
           ],
           template_info: {
-            name: 'Remote template',
-            reference_value: 'https://example.com/template.json',
-            source: 'remote',
+            name: '轻量代理 · 地区分组',
+            reference_value: '4',
+            source: 'builtin',
           },
         },
       },
@@ -387,11 +399,11 @@ test('subscription UI loads templates, converts, then clears stale result on fai
 
   assert.equal(ui.calls[0].url, '/api/sub/templates');
   assert.match(ui.elements['sub-template'].innerHTML, /value="1"/);
-  assert.match(ui.elements['sub-template'].innerHTML, /value="remote-template"/);
+  assert.match(ui.elements['sub-template'].innerHTML, /value="4"/);
   assert.equal(ui.elements['sub-template'].value, '1');
   assert.equal(ui.elements['sub-template-card'].classList.contains('hidden'), false);
 
-  ui.elements['sub-template'].value = 'remote-template';
+  ui.elements['sub-template'].value = '4';
   await ui.convertSubscription();
 
   assert.equal(ui.calls[1].url, '/api/sub/convert');
@@ -399,8 +411,8 @@ test('subscription UI loads templates, converts, then clears stale result on fai
   assert.equal(ui.calls[1].options.headers['Content-Type'], 'application/json');
   assert.deepEqual(JSON.parse(ui.calls[1].options.body), {
     subscription_url: 'https://example.com/subscription',
-    template: 'remote-template',
-    file: 'remote-template',
+    template: '4',
+    file: '4',
     ua: 'clashmeta',
     skip_unsupported: false,
   });
@@ -413,7 +425,7 @@ test('subscription UI loads templates, converts, then clears stale result on fai
   assert.equal(ui.elements['sub-link'].textContent, 'https://tools.example/api/sub/download/abc');
   assert.equal(
     ui.elements['sub-template-result-text'].textContent,
-    'Remote template · 远程模板 · file=https://example.com/template.json'
+    '轻量代理 · 地区分组 · 内置模板'
   );
 
   ui.downloadSubJson();
@@ -454,16 +466,16 @@ test('subscription UI clears stale result when converting with an empty URL', as
             { name: 'Proxy 1', protocol: 'vmess', server: 'server.example', port: 443 },
           ],
           template_info: {
-            name: 'Remote template',
-            reference_value: 'https://example.com/template.json',
-            source: 'remote',
+            name: '轻量代理 · 地区分组',
+            reference_value: '4',
+            source: 'builtin',
           },
         },
       },
     ],
   });
 
-  ui.elements['sub-template'].value = 'remote-template';
+  ui.elements['sub-template'].value = '4';
   await ui.convertSubscription();
 
   assert.equal(ui.calls.length, 1);
@@ -521,7 +533,8 @@ test('subscription content mode hides URL settings and submits pasted content wi
   assert.equal(ui.elements['sub-output-section'].classList.contains('hidden'), false);
   assert.equal(ui.elements['sub-validation'].classList.contains('hidden'), false);
   assert.match(ui.elements['sub-validation'].textContent, /sing-box 1\.14\.4 内核配置校验通过/);
-  assert.match(ui.elements['sub-validation'].textContent, /配置校验通过不代表节点连通/);
+  assert.match(ui.elements['sub-validation'].textContent, /不启动 Android VPN/);
+  assert.match(ui.elements['sub-validation'].textContent, /不测试节点连通或远程规则下载/);
   assert.match(ui.elements['sub-proxies-list'].innerHTML, /&lt;img onerror=alert\(1\)&gt;/);
   assert.doesNotMatch(ui.elements['sub-proxies-list'].innerHTML, /<img/);
   ui.downloadSubJson();

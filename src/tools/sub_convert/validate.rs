@@ -261,6 +261,172 @@ pub fn validate_references(config: &Value) -> Result<(), String> {
             return Err(format!("route.final 引用了不存在的出站：{tag}"));
         }
     }
+    validate_service_references(config, &tags)?;
+    Ok(())
+}
+
+fn validate_service_references(
+    config: &Value,
+    outbounds: &std::collections::HashMap<&str, usize>,
+) -> Result<(), String> {
+    use std::collections::HashSet;
+
+    fn collect_tags<'a>(items: &'a Value, label: &str) -> Result<HashSet<&'a str>, String> {
+        let mut tags = HashSet::new();
+        if items.is_null() {
+            return Ok(tags);
+        }
+        for item in items
+            .as_array()
+            .ok_or_else(|| format!("{label} 必须是数组"))?
+        {
+            let tag = &item["tag"];
+            let values = if label == "route.rule_set" && tag.is_array() {
+                tag.as_array().unwrap().iter().collect::<Vec<_>>()
+            } else {
+                vec![tag]
+            };
+            for value in values {
+                let tag = value
+                    .as_str()
+                    .filter(|tag| !tag.is_empty())
+                    .ok_or_else(|| format!("{label} 缺少非空 tag"))?;
+                if !tags.insert(tag) {
+                    return Err(format!("{label} tag 重复：{tag}"));
+                }
+            }
+        }
+        Ok(tags)
+    }
+
+    fn check_tag(value: &Value, tags: &HashSet<&str>, label: &str) -> Result<(), String> {
+        let tag = value
+            .as_str()
+            .ok_or_else(|| format!("{label} 必须是字符串"))?;
+        if !tags.contains(tag) {
+            return Err(format!("{label} 引用了不存在的 tag：{tag}"));
+        }
+        Ok(())
+    }
+
+    fn check_dialer(
+        value: &Value,
+        outbound_tags: &HashSet<&str>,
+        dns_tags: &HashSet<&str>,
+        label: &str,
+    ) -> Result<(), String> {
+        if let Some(detour) = value.get("detour") {
+            check_tag(detour, outbound_tags, &format!("{label}.detour"))?;
+        }
+        if let Some(resolver) = value.get("domain_resolver") {
+            let server = if resolver.is_object() {
+                resolver.get("server")
+            } else {
+                Some(resolver)
+            };
+            if let Some(server) = server {
+                check_tag(server, dns_tags, &format!("{label}.domain_resolver"))?;
+            }
+        }
+        Ok(())
+    }
+
+    fn check_rules(
+        rules: &Value,
+        outbound_tags: &HashSet<&str>,
+        dns_tags: &HashSet<&str>,
+        rule_tags: &HashSet<&str>,
+        label: &str,
+    ) -> Result<(), String> {
+        if rules.is_null() {
+            return Ok(());
+        }
+        for rule in rules
+            .as_array()
+            .ok_or_else(|| format!("{label} 必须是数组"))?
+        {
+            if let Some(outbound) = rule.get("outbound") {
+                check_tag(outbound, outbound_tags, &format!("{label}.outbound"))?;
+            }
+            if let Some(server) = rule.get("server") {
+                check_tag(server, dns_tags, &format!("{label}.server"))?;
+            }
+            if let Some(rule_set) = rule.get("rule_set") {
+                if let Some(items) = rule_set.as_array() {
+                    for tag in items {
+                        check_tag(tag, rule_tags, &format!("{label}.rule_set"))?;
+                    }
+                } else {
+                    check_tag(rule_set, rule_tags, &format!("{label}.rule_set"))?;
+                }
+            }
+            check_rules(&rule["rules"], outbound_tags, dns_tags, rule_tags, label)?;
+        }
+        Ok(())
+    }
+
+    let outbound_tags = outbounds.keys().copied().collect::<HashSet<_>>();
+    let dns_tags = collect_tags(&config["dns"]["servers"], "dns.servers")?;
+    let rule_tags = collect_tags(&config["route"]["rule_set"], "route.rule_set")?;
+    let http_tags = collect_tags(&config["http_clients"], "http_clients")?;
+    if let Some(final_tag) = config["dns"].get("final") {
+        check_tag(final_tag, &dns_tags, "dns.final")?;
+    }
+    if let Some(resolver) = config["route"].get("default_domain_resolver") {
+        let server = if resolver.is_object() {
+            resolver.get("server")
+        } else {
+            Some(resolver)
+        };
+        if let Some(server) = server {
+            check_tag(server, &dns_tags, "route.default_domain_resolver")?;
+        }
+    }
+    if let Some(client) = config["route"].get("default_http_client") {
+        check_tag(client, &http_tags, "route.default_http_client")?;
+    }
+    for (items, label) in [
+        (&config["outbounds"], "outbounds"),
+        (&config["dns"]["servers"], "dns.servers"),
+        (&config["http_clients"], "http_clients"),
+    ] {
+        for item in items.as_array().into_iter().flatten() {
+            check_dialer(item, &outbound_tags, &dns_tags, label)?;
+            if label == "dns.servers"
+                && let Some(detour) = item.get("detour").and_then(Value::as_str)
+                && let Some(index) = outbounds.get(detour)
+            {
+                let outbound = &config["outbounds"][*index];
+                if outbound["type"] == "direct"
+                    && outbound.as_object().is_some_and(|object| {
+                        object
+                            .keys()
+                            .all(|key| matches!(key.as_str(), "type" | "tag"))
+                    })
+                {
+                    return Err(format!(
+                        "DNS「{}」的 detour 指向空 direct 出站「{detour}」，sing-box 启动时会拒绝；直连 DNS 请省略 detour",
+                        item["tag"].as_str().unwrap_or("")
+                    ));
+                }
+            }
+        }
+    }
+    for rule_set in config["route"]["rule_set"].as_array().into_iter().flatten() {
+        if let Some(client) = rule_set.get("http_client") {
+            if client.is_object() {
+                check_dialer(client, &outbound_tags, &dns_tags, "rule_set.http_client")?;
+            } else {
+                check_tag(client, &http_tags, "rule_set.http_client")?;
+            }
+        }
+    }
+    for (rules, label) in [
+        (&config["dns"]["rules"], "dns.rules"),
+        (&config["route"]["rules"], "route.rules"),
+    ] {
+        check_rules(rules, &outbound_tags, &dns_tags, &rule_tags, label)?;
+    }
     Ok(())
 }
 
@@ -309,6 +475,96 @@ mod tests {
     }
 
     #[test]
+    fn rejects_empty_direct_dns_detours_before_invoking_the_kernel() {
+        let mut config = json!({
+            "dns":{"servers":[{"type":"udp","tag":"local","server":"223.5.5.5","detour":"direct"}],"final":"local"},
+            "outbounds":[{"type":"direct","tag":"direct"}]
+        });
+        let error = validate_references(&config).unwrap_err();
+        assert!(error.contains("直连 DNS 请省略 detour"));
+        config["dns"]["servers"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("detour");
+        validate_references(&config).unwrap();
+        config["dns"]["servers"][0]["detour"] = json!("direct");
+        config["outbounds"][0]["bind_interface"] = json!("eth0");
+        validate_references(&config).unwrap();
+    }
+
+    #[test]
+    fn validates_dns_route_rule_set_and_http_client_references() {
+        let template = super::super::template::resolve_template(None, None).unwrap();
+        let nodes = super::super::parser::parse_subscription_content(
+            "trojan://secret@example.com:443#Good",
+        )
+        .unwrap();
+        let config =
+            super::super::render::render_template(template.content.as_ref(), &nodes).unwrap();
+        validate_references(&config).unwrap();
+        for (pointer, expected) in [
+            ("/dns/final", "dns.final"),
+            ("/dns/servers/1/detour", "dns.servers.detour"),
+            ("/dns/rules/0/server", "dns.rules.server"),
+            ("/dns/rules/0/rule_set/0", "dns.rules.rule_set"),
+            (
+                "/route/default_domain_resolver",
+                "route.default_domain_resolver",
+            ),
+            ("/route/default_http_client", "route.default_http_client"),
+            ("/route/rules/3/outbound", "route.rules.outbound"),
+            ("/route/rule_set/0/http_client", "rule_set.http_client"),
+            ("/http_clients/0/detour", "http_clients.detour"),
+        ] {
+            let mut broken = config.clone();
+            *broken.pointer_mut(pointer).unwrap() = json!("missing");
+            let error = validate_references(&broken).unwrap_err();
+            assert!(error.contains(expected), "{pointer}: {error}");
+        }
+        for (pointer, value) in [
+            (
+                "/route/default_domain_resolver",
+                json!({"server":"missing"}),
+            ),
+            (
+                "/dns/servers/1/domain_resolver",
+                json!({"server":"missing"}),
+            ),
+            ("/route/rule_set/0/http_client", json!({"detour":"missing"})),
+            (
+                "/route/rules/0",
+                json!({"type":"logical","mode":"or","rules":[{"rule_set":"missing"}],"action":"route","outbound":"direct"}),
+            ),
+        ] {
+            let mut broken = config.clone();
+            if pointer.ends_with("/domain_resolver") {
+                broken["dns"]["servers"][1]["domain_resolver"] = value;
+            } else {
+                *broken.pointer_mut(pointer).unwrap() = value;
+            }
+            assert!(validate_references(&broken).is_err(), "{pointer}");
+        }
+        for key in ["dns", "http_clients"] {
+            let mut broken = config.clone();
+            if key == "dns" {
+                let duplicate = broken["dns"]["servers"][0].clone();
+                broken["dns"]["servers"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(duplicate);
+            } else {
+                let duplicate = broken[key][0].clone();
+                broken[key].as_array_mut().unwrap().push(duplicate);
+            }
+            assert!(
+                validate_references(&broken)
+                    .unwrap_err()
+                    .contains("tag 重复")
+            );
+        }
+    }
+
+    #[test]
     fn accepts_valid_references_and_redacts_credentials() {
         let config = json!({"outbounds":[{"tag":"proxy","type":"selector","outbounds":["node"]},{"tag":"node","type":"trojan","password":"private-password"}],"route":{"final":"proxy"}});
         validate_references(&config).unwrap();
@@ -325,6 +581,104 @@ mod tests {
         );
         assert!(reject_local_resources(&json!({"type":"local","path":"/etc/passwd"})).is_err());
         reject_local_resources(&json!({"transport":{"type":"ws","path":"/ws"}})).unwrap();
+    }
+
+    async fn native_startup_log(config: &Value) -> (bool, String) {
+        use tokio::io::AsyncBufReadExt;
+        let binary = std::env::var_os("SING_BOX_BINARY").expect("请设置 SING_BOX_BINARY");
+        let mut child = Command::new(binary)
+            .args(["run", "-c", "stdin", "--disable-color"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .unwrap();
+        let mut stdin = child.stdin.take().unwrap();
+        stdin
+            .write_all(&serde_json::to_vec(config).unwrap())
+            .await
+            .unwrap();
+        stdin.shutdown().await.unwrap();
+        drop(stdin);
+        let mut lines = tokio::io::BufReader::new(child.stderr.take().unwrap()).lines();
+        let mut diagnostic = String::new();
+        let result = timeout(Duration::from_secs(10), async {
+            while let Some(line) = lines.next_line().await.unwrap() {
+                diagnostic.push_str(&line);
+                diagnostic.push('\n');
+                if line.contains("sing-box started") {
+                    return true;
+                }
+            }
+            false
+        })
+        .await;
+        let _ = child.kill().await;
+        child.wait().await.unwrap();
+        (result.unwrap_or(false), diagnostic)
+    }
+
+    #[tokio::test]
+    #[ignore = "starts official sing-box without TUN or external traffic; set SING_BOX_BINARY"]
+    async fn official_kernel_startup_reproduces_empty_direct_dns_regression() {
+        let mut config = json!({
+            "log":{"level":"info"},
+            "dns":{"servers":[{"type":"udp","tag":"local","server":"127.0.0.1","server_port":9,"detour":"direct"}]},
+            "outbounds":[{"type":"direct","tag":"direct"}]
+        });
+        let (started, log) = native_startup_log(&config).await;
+        assert!(!started);
+        assert!(
+            log.contains("detour to an empty direct outbound makes no sense"),
+            "{log}"
+        );
+        config["dns"]["servers"][0]
+            .as_object_mut()
+            .unwrap()
+            .remove("detour");
+        let (started, log) = native_startup_log(&config).await;
+        assert!(started, "{log}");
+    }
+
+    #[tokio::test]
+    #[ignore = "starts official sing-box without TUN or external traffic; set SING_BOX_BINARY"]
+    async fn official_kernel_starts_builtin_dns_and_routing_services_offline() {
+        for template in super::super::template::builtin_templates() {
+            let nodes = super::super::parser::parse_subscription_content(
+                "trojan://test@127.0.0.1:9#Offline",
+            )
+            .unwrap();
+            let text = super::super::template::builtin_template_content(template.id).unwrap();
+            let mut config = super::super::render::render_template(text, &nodes).unwrap();
+            // Keep DNS/detours intact while excluding host routing, disk and external network effects.
+            config["inbounds"] = json!([]);
+            config["route"]["auto_detect_interface"] = json!(false);
+            config.as_object_mut().unwrap().remove("experimental");
+            for server in config["dns"]["servers"].as_array_mut().unwrap() {
+                if server.get("server").is_some() {
+                    server["server"] = json!("127.0.0.1");
+                    server["server_port"] = json!(9);
+                }
+            }
+            for outbound in config["outbounds"].as_array_mut().unwrap() {
+                if outbound["type"] == "urltest" {
+                    outbound["url"] = json!("http://127.0.0.1:9/");
+                }
+            }
+            for rule_set in config["route"]["rule_set"]
+                .as_array_mut()
+                .into_iter()
+                .flatten()
+            {
+                let tag = rule_set["tag"].clone();
+                *rule_set =
+                    json!({"type":"inline","tag":tag,"rules":[{"domain_suffix":["example.cn"]}]});
+            }
+            validate_references(&config).unwrap();
+            let (started, log) = native_startup_log(&config).await;
+            assert!(started, "{}: {log}", template.id);
+        }
     }
 
     #[tokio::test]

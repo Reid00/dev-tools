@@ -31,10 +31,10 @@ pub struct ResolvedTemplate {
 pub fn builtin_templates() -> Vec<TemplateDescriptor> {
     [
         ("config_template_groups_rule_set_tun", "国内直连 · 国外代理（推荐）", "sing-box 1.14.x · Android 授予 VPN 权限后自动接入，无需逐个设置应用代理；桌面使用 TUN 需管理员权限。按规则将国内域名/IP、局域网直连，其余走代理，DNS 配套分流；仅保留自动测速和手动选节点，无地区分组或 FakeIP。首次启动需通过可用代理下载两份国内规则，之后缓存并自动更新；启动失败请查看规则下载或节点连接错误。", "config_template_groups_rule_set_tun"),
-        ("config_template_groups_rule_set_tun_fakeip", "TUN 全局代理 · FakeIP", "sing-box 1.14.x · 接管系统流量并启用 FakeIP，需要管理员权限；局域网直连。", "config_template_groups_rule_set_tun_fakeip"),
-        ("config_template_no_groups_tun_vn", "TUN 全局代理 · 精简", "sing-box 1.14.x · 接管系统流量，手动选择节点，需要管理员权限；不启用 FakeIP。", "config_template_no_groups_tun_VN"),
-        ("sb-config-1.12", "轻量代理 · 地区分组", "sing-box 1.14.x · 127.0.0.1:2080 · 按节点名称分组；空地区组回退到自动测速，不会静默直连。", "sb-config-1.12"),
-        ("sb-config-1.14", "TUN 全局代理 · 地区分组", "sing-box 1.14.x · 接管系统流量、按地区选择节点，需要管理员权限；不依赖远程规则。", "sb-config-1.14"),
+        ("config_template_groups_rule_set_tun_fakeip", "TUN 全局代理 · FakeIP", "sing-box 1.14.x · Android 授予 VPN 权限后自动接入；桌面 TUN 需管理员权限。局域网直连，其余默认代理，无国内分流。FakeIP 以虚拟 IP 保留域名信息，部分应用可能不兼容；支持自动测速与手动选节点。", "config_template_groups_rule_set_tun_fakeip"),
+        ("config_template_no_groups_tun_vn", "TUN 全局代理 · 精简", "sing-box 1.14.x · Android 授予 VPN 权限后自动接入；桌面 TUN 需管理员权限。局域网直连，其余默认代理，无国内分流、FakeIP 或自动测速，手动选择节点。", "config_template_no_groups_tun_VN"),
+        ("sb-config-1.12", "轻量代理 · 地区分组", "sing-box 1.14.x · 仅提供本机 HTTP/SOCKS 127.0.0.1:2080，无 TUN；应用需手动设置代理，不适合 Android 开启即用。按节点名称分组，空地区组使用全部节点测速，不会静默直连；无国内分流。", "sb-config-1.12"),
+        ("sb-config-1.14", "TUN 全局代理 · 地区分组", "sing-box 1.14.x · Android 授予 VPN 权限后自动接入；桌面 TUN 需管理员权限。局域网直连，其余默认代理，无国内分流；按节点名称选择地区，支持自动测速，不依赖远程规则。", "sb-config-1.14"),
     ].into_iter().enumerate().map(|(index, (id, name, description, reference_key))| TemplateDescriptor {
         id, name, description, reference_key, index: Some(index + 1), source: TemplateSource::Builtin,
         recommended: index == 0, sing_box_version: "1.14.x",
@@ -201,7 +201,7 @@ mod tests {
             .find(|server| server["tag"] == "local")
             .unwrap();
         assert_eq!(local["type"], "udp");
-        assert_eq!(local["detour"], "direct");
+        assert!(local.get("detour").is_none());
         assert!(
             local["server"]
                 .as_str()
