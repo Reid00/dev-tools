@@ -120,7 +120,10 @@
       "Bash(command -v zellij)",
       "mcp__plugin_playwright_playwright__browser_click",
       "mcp__plugin_playwright_playwright__browser_evaluate",
-      "mcp__plugin_playwright_playwright__browser_close"
+      "mcp__plugin_playwright_playwright__browser_close",
+      "Agent",
+      "Bash(/private/tmp/sing-box-1.14.4-darwin-arm64/sing-box version *)",
+      "Bash(ruby *)"
     ]
   }
 }
