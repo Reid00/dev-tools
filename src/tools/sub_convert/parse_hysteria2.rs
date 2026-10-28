@@ -9,8 +9,9 @@ pub fn parse_hysteria2(url: &str) -> Result<ProxyNode, String> {
     let parsed = Url::parse(&format!("hysteria2://{raw}"))
         .map_err(|e| format!("Failed to parse hysteria2 URL: {e}"))?;
 
-    let password = decode_component(parsed.username());
-    let server = parsed.host_str().unwrap_or("").to_string();
+    super::parser::validate_url_parameters(&parsed)?;
+    let password = super::parser::url_password(&parsed);
+    let server = super::parser::url_server(&parsed);
     let port = parsed.port().unwrap_or(443);
     let name = parsed
         .fragment()
@@ -32,9 +33,13 @@ pub fn parse_hysteria2(url: &str) -> Result<ProxyNode, String> {
 
     for (key, value) in parsed.query_pairs() {
         match key.as_ref() {
+            "security" if value != "tls" => return Err("Hysteria2 仅支持 TLS".to_string()),
+            "fp" | "fingerprint" | "pbk" | "sid" => {
+                return Err("Hysteria2 不支持 uTLS / Reality 参数".to_string());
+            }
             "sni" if sni.is_empty() => sni = value.into_owned(),
             "peer" if peer.is_empty() => peer = value.into_owned(),
-            "insecure" => {
+            "insecure" | "allowInsecure" => {
                 tls_insecure = value == "1" || value.eq_ignore_ascii_case("true");
             }
             "alpn" => {
@@ -49,9 +54,22 @@ pub fn parse_hysteria2(url: &str) -> Result<ProxyNode, String> {
             "obfs-password" | "obfs_password" if hy2_obfs_password.is_empty() => {
                 hy2_obfs_password = value.into_owned()
             }
-            "upmbps" | "up" if hy2_up_mbps.is_none() => hy2_up_mbps = value.parse::<u64>().ok(),
+            "upmbps" | "up" if hy2_up_mbps.is_none() => {
+                hy2_up_mbps = Some(
+                    value
+                        .parse::<u64>()
+                        .map_err(|_| "up 必须为整数 Mbps".to_string())?,
+                );
+            }
             "downmbps" | "down" if hy2_down_mbps.is_none() => {
-                hy2_down_mbps = value.parse::<u64>().ok()
+                hy2_down_mbps = Some(
+                    value
+                        .parse::<u64>()
+                        .map_err(|_| "down 必须为整数 Mbps".to_string())?,
+                );
+            }
+            "type" if value != "tcp" && !value.is_empty() => {
+                return Err("Hysteria2 不支持额外 transport".to_string());
             }
             _ => {}
         }
@@ -74,12 +92,6 @@ pub fn parse_hysteria2(url: &str) -> Result<ProxyNode, String> {
     node.hy2_up_mbps = hy2_up_mbps;
     node.hy2_down_mbps = hy2_down_mbps;
     Ok(node)
-}
-
-fn decode_component(value: &str) -> String {
-    urlencoding::decode(value)
-        .map(|decoded| decoded.into_owned())
-        .unwrap_or_else(|_| value.to_string())
 }
 
 #[cfg(test)]

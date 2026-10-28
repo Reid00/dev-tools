@@ -780,6 +780,7 @@ pub(crate) async fn fetch_remote_text(
 }
 
 fn fetch_error(response_label: &str, error: reqwest::Error) -> String {
+    let error = error.without_url();
     match response_label {
         "subscription" => format!("Failed to fetch subscription: {}", error),
         "remote template" => format!("Failed to fetch remote template: {}", error),
@@ -788,6 +789,7 @@ fn fetch_error(response_label: &str, error: reqwest::Error) -> String {
 }
 
 fn read_error(response_label: &str, error: reqwest::Error) -> String {
+    let error = error.without_url();
     match response_label {
         "remote template" => format!("Failed to read remote template: {}", error),
         _ => format!("Failed to read response: {}", error),

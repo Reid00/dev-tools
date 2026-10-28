@@ -12,6 +12,8 @@ COPY src ./src
 COPY static ./static
 RUN touch src/main.rs && cargo build --release
 
+FROM ghcr.io/sagernet/sing-box:v1.14.4 AS singbox
+
 # 运行阶段
 FROM debian:bookworm-slim
 
@@ -20,6 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+COPY --from=singbox /usr/local/bin/sing-box /usr/local/bin/sing-box
+RUN sing-box version --name
 
 WORKDIR /app
 

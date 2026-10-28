@@ -2,82 +2,348 @@ use super::types::{ProxyNode, ProxyProtocol, TransportType};
 use serde_yaml::Mapping;
 
 pub fn parse_clash_yaml(content: &str) -> Result<Vec<ProxyNode>, String> {
-    let yaml: serde_yaml::Value = serde_yaml::from_str(content)
-        .map_err(|error| format!("Failed to parse Clash YAML: {error}"))?;
-
+    let yaml: serde_yaml::Value = serde_yaml::from_str(content).map_err(|error| {
+        let location = error
+            .location()
+            .map(|location| format!("（第 {} 行，第 {} 列）", location.line(), location.column()))
+            .unwrap_or_default();
+        format!("Failed to parse Clash YAML：格式错误{location}")
+    })?;
     let proxies = yaml
         .get("proxies")
-        .and_then(|value| value.as_sequence())
-        .ok_or_else(|| "No proxies found in Clash YAML".to_string())?;
+        .and_then(serde_yaml::Value::as_sequence)
+        .ok_or_else(|| {
+            "Clash 订阅缺少 proxies 数组；不支持仅含 proxy-providers 的配置，请提供完整节点订阅"
+                .to_string()
+        })?;
+    if proxies.is_empty() {
+        return Err("Clash proxies 数组为空，没有可转换的节点".to_string());
+    }
+    proxies
+        .iter()
+        .enumerate()
+        .map(|(index, value)| {
+            let proxy = value
+                .as_mapping()
+                .ok_or_else(|| format!("Clash 第 {} 个节点：必须是对象", index + 1))?;
+            let name = get_str(proxy, "name").unwrap_or("未命名");
+            let context = format!("Clash 第 {} 个节点「{name}」", index + 1);
+            clash_proxy_to_node(proxy).map_err(|error| format!("{context}：{error}"))
+        })
+        .collect()
+}
 
-    let mut nodes = Vec::new();
-    for value in proxies {
-        if let Some(proxy) = value.as_mapping() {
-            if let Some(node) = clash_proxy_to_node(proxy)? {
-                nodes.push(node);
+fn clash_proxy_to_node(proxy: &Mapping) -> Result<ProxyNode, String> {
+    let proxy_type = get_required_str(proxy, "type", "缺少字符串字段 type")?;
+    if !matches!(
+        proxy_type,
+        "vmess" | "vless" | "trojan" | "ss" | "ssr" | "hysteria2" | "hy2" | "anytls"
+    ) {
+        return Err("不支持此 type，无法转换为 sing-box；未跳过任何节点".to_string());
+    }
+    let name = get_str(proxy, "name").unwrap_or("proxy");
+    let server = get_required_str(proxy, "server", "缺少字符串字段 server")?;
+    let port = get_u16(proxy, "port")
+        .filter(|port| *port > 0)
+        .ok_or_else(|| "port 必须在 1–65535 之间".to_string())?;
+    let credential = if matches!(proxy_type, "vmess" | "vless") {
+        "uuid"
+    } else {
+        "password"
+    };
+    if get_str(proxy, credential).is_none_or(str::is_empty) {
+        return Err(format!("缺少字符串字段 {credential}"));
+    }
+    validate_clash_options(proxy, proxy_type)?;
+    let node = match proxy_type {
+        "vmess" => parse_clash_vmess(proxy, name, server, port),
+        "vless" => parse_clash_vless(proxy, name, server, port),
+        "trojan" => parse_clash_trojan(proxy, name, server, port),
+        "ss" => Some(parse_clash_ss(proxy, name)?),
+        "ssr" => Some(parse_clash_ssr(proxy, name)?),
+        "hysteria2" | "hy2" => parse_clash_hysteria2(proxy, name, server, port),
+        "anytls" => parse_clash_anytls(proxy, name, server, port),
+        _ => unreachable!(),
+    }
+    .ok_or_else(|| "节点缺少必要字段".to_string())?;
+    super::parser::validate_required_fields(&node)?;
+    Ok(node)
+}
+
+fn validate_clash_options(proxy: &Mapping, proxy_type: &str) -> Result<(), String> {
+    if get_str(proxy, "network") == Some("http") {
+        return Err("Clash network: http 使用 HTTP/1.1 TCP 伪装，与 sing-box HTTP/2 transport 不兼容，无法无损转换".to_string());
+    }
+    let common = ["name", "type", "server", "port", "udp", "tfo"];
+    let protocol_fields: &[&str] = match proxy_type {
+        "vmess" => &[
+            "uuid",
+            "alterId",
+            "cipher",
+            "tls",
+            "skip-cert-verify",
+            "servername",
+            "sni",
+            "client-fingerprint",
+            "alpn",
+            "network",
+            "ws-opts",
+            "grpc-opts",
+            "h2-opts",
+        ],
+        "vless" => &[
+            "uuid",
+            "flow",
+            "encryption",
+            "tls",
+            "skip-cert-verify",
+            "servername",
+            "sni",
+            "client-fingerprint",
+            "alpn",
+            "network",
+            "ws-opts",
+            "grpc-opts",
+            "h2-opts",
+            "reality-opts",
+        ],
+        "trojan" => &[
+            "password",
+            "tls",
+            "skip-cert-verify",
+            "servername",
+            "sni",
+            "client-fingerprint",
+            "alpn",
+            "network",
+            "ws-opts",
+            "grpc-opts",
+            "h2-opts",
+            "reality-opts",
+        ],
+        "ss" => &["cipher", "password", "plugin", "plugin-opts"],
+        "ssr" => &[
+            "cipher",
+            "password",
+            "protocol",
+            "protocol-param",
+            "protocol_param",
+            "obfs",
+            "obfs-param",
+            "obfs_param",
+        ],
+        "hysteria2" | "hy2" => &[
+            "password",
+            "tls",
+            "skip-cert-verify",
+            "servername",
+            "sni",
+            "alpn",
+            "obfs",
+            "obfs-password",
+            "up",
+            "down",
+        ],
+        "anytls" => &[
+            "password",
+            "tls",
+            "skip-cert-verify",
+            "servername",
+            "sni",
+            "client-fingerprint",
+            "alpn",
+            "network",
+            "ws-opts",
+            "grpc-opts",
+            "h2-opts",
+        ],
+        _ => unreachable!(),
+    };
+    for key in proxy.keys() {
+        let key = key
+            .as_str()
+            .ok_or_else(|| "节点字段名必须为字符串".to_string())?;
+        if !common.contains(&key) && !protocol_fields.contains(&key) {
+            return Err(format!("不支持参数 {key}，无法无损转换"));
+        }
+    }
+    if let Some(network) = proxy.get("network") {
+        let network = network
+            .as_str()
+            .ok_or_else(|| "network 必须为字符串".to_string())?;
+        super::parser::parse_transport(network)?;
+        if matches!(proxy_type, "ss" | "ssr" | "hysteria2" | "hy2")
+            && !matches!(network, "" | "tcp")
+        {
+            return Err("此协议不支持额外 network，无法无损转换".to_string());
+        }
+    }
+    if matches!(proxy_type, "trojan" | "hysteria2" | "hy2" | "anytls")
+        && proxy.get("tls") == Some(&serde_yaml::Value::Bool(false))
+    {
+        return Err("此协议必须启用 TLS，不能转换 tls: false 节点".to_string());
+    }
+    if proxy.contains_key("reality-opts")
+        && matches!(proxy_type, "vless" | "trojan")
+        && proxy_type == "vless"
+        && !get_bool(proxy, "tls")
+    {
+        return Err("Reality 节点必须设置 tls: true".to_string());
+    }
+    if matches!(proxy_type, "hysteria2" | "hy2") && proxy.contains_key("client-fingerprint") {
+        return Err("Hysteria2 不支持 client-fingerprint，无法无损转换".to_string());
+    }
+    let network = get_str(proxy, "network").unwrap_or("tcp");
+    if network == "h2" && !get_bool(proxy, "tls") && !matches!(proxy_type, "trojan" | "anytls") {
+        return Err("Clash h2 仅支持启用 TLS 的节点，明文 HTTP/2 无法无损转换".to_string());
+    }
+    for (option, required_networks) in [
+        ("ws-opts", &["ws"][..]),
+        ("grpc-opts", &["grpc"][..]),
+        ("h2-opts", &["h2"][..]),
+    ] {
+        if proxy.contains_key(option) && !required_networks.contains(&network) {
+            return Err(format!("{option} 与 network 不匹配，无法无损转换"));
+        }
+    }
+    for key in [
+        "smux",
+        "packet-encoding",
+        "dialer-proxy",
+        "ports",
+        "hop-interval",
+        "certificate",
+        "private-key",
+        "reality-opts",
+        "fingerprint",
+    ] {
+        if key == "reality-opts" && matches!(proxy_type, "vless" | "trojan") {
+            continue;
+        }
+        if proxy.get(key).is_some_and(|value| {
+            !value.is_null()
+                && value != &serde_yaml::Value::Bool(false)
+                && value.as_str() != Some("")
+        }) {
+            return Err(format!("不支持参数 {key}，无法无损转换"));
+        }
+    }
+    if proxy
+        .get("encryption")
+        .is_some_and(|value| value.as_str() != Some("none"))
+    {
+        return Err("不支持 encryption，仅支持 none".to_string());
+    }
+    for key in ["tls", "skip-cert-verify", "udp", "tfo"] {
+        if proxy.get(key).is_some_and(|value| !value.is_bool()) {
+            return Err(format!("{key} 必须为布尔值"));
+        }
+    }
+    for key in [
+        "servername",
+        "sni",
+        "client-fingerprint",
+        "flow",
+        "obfs",
+        "obfs-password",
+        "plugin",
+    ] {
+        if proxy.get(key).is_some_and(|value| !value.is_string()) {
+            return Err(format!("{key} 必须为字符串"));
+        }
+    }
+    if let Some(alpn) = proxy.get("alpn")
+        && !alpn.is_string()
+        && !alpn
+            .as_sequence()
+            .is_some_and(|items| items.iter().all(serde_yaml::Value::is_string))
+    {
+        return Err("alpn 必须为字符串或字符串数组".to_string());
+    }
+    if proxy.contains_key("alterId") && get_u32(proxy, "alterId").is_none() {
+        return Err("alterId 必须为非负整数".to_string());
+    }
+    for key in ["up", "down"] {
+        if proxy.contains_key(key) && get_u64(proxy, key).is_none() {
+            return Err(format!("{key} 必须为整数 Mbps"));
+        }
+    }
+    for key in ["ws-opts", "h2-opts", "grpc-opts", "reality-opts"] {
+        if let Some(opts) = proxy.get(key) {
+            let opts = opts
+                .as_mapping()
+                .ok_or_else(|| format!("{key} 必须为对象"))?;
+            let allowed: &[&str] = match key {
+                "ws-opts" => &["path", "headers"],
+                "h2-opts" => &["path", "host"],
+                "grpc-opts" => &["grpc-service-name"],
+                "reality-opts" => &["public-key", "short-id"],
+                _ => unreachable!(),
+            };
+            if opts
+                .keys()
+                .any(|key| !key.as_str().is_some_and(|key| allowed.contains(&key)))
+            {
+                return Err(format!("{key} 包含无法无损转换的选项"));
+            }
+            if let Some(path) = opts.get("path")
+                && !path.is_string()
+            {
+                return Err(format!("{key}.path 必须为单一路径字符串"));
+            }
+            if opts
+                .get("path")
+                .and_then(serde_yaml::Value::as_str)
+                .is_some_and(|path| path.contains("?ed=") || path.contains("&ed="))
+            {
+                return Err(format!(
+                    "暂不支持通过 {key}.path 声明 WebSocket early data，无法无损转换"
+                ));
+            }
+            if let Some(headers) = opts.get("headers") {
+                let headers = headers
+                    .as_mapping()
+                    .ok_or_else(|| format!("{key}.headers 必须为对象"))?;
+                if headers.keys().any(|key| key.as_str() != Some("Host")) {
+                    return Err(format!("{key}.headers 仅支持 Host，其他请求头无法无损转换"));
+                }
+                if let Some(host) = headers.get("Host")
+                    && !host.is_string()
+                {
+                    return Err(format!("{key}.headers.Host 必须为单一主机字符串"));
+                }
+            }
+            if key == "h2-opts"
+                && let Some(host) = opts.get("host")
+                && !(host.is_string()
+                    || host
+                        .as_sequence()
+                        .is_some_and(|hosts| hosts.len() == 1 && hosts[0].is_string()))
+            {
+                return Err("h2-opts.host 仅支持单个主机名，无法保留多主机随机选择".to_string());
+            }
+            if key == "reality-opts" {
+                if opts
+                    .get("public-key")
+                    .and_then(serde_yaml::Value::as_str)
+                    .is_none_or(str::is_empty)
+                {
+                    return Err("reality-opts 缺少 public-key 字符串".to_string());
+                }
+                if opts.get("short-id").is_some_and(|value| !value.is_string()) {
+                    return Err(
+                        "reality-opts.short-id 必须为带引号的字符串，避免丢失前导零".to_string()
+                    );
+                }
+            }
+            for key in ["grpc-service-name", "public-key"] {
+                if opts.get(key).is_some_and(|value| !value.is_string()) {
+                    return Err(format!("{key} 必须为字符串"));
+                }
             }
         }
     }
-
-    Ok(nodes)
-}
-
-fn clash_proxy_to_node(proxy: &Mapping) -> Result<Option<ProxyNode>, String> {
-    let Some(proxy_type) = get_str(proxy, "type") else {
-        return Ok(None);
-    };
-    let name = get_str(proxy, "name").unwrap_or("proxy");
-
-    match proxy_type {
-        "vmess" => {
-            let Some(server) = get_str(proxy, "server") else {
-                return Ok(None);
-            };
-            let Some(port) = get_u16(proxy, "port") else {
-                return Ok(None);
-            };
-            Ok(parse_clash_vmess(proxy, name, server, port))
-        }
-        "vless" => {
-            let Some(server) = get_str(proxy, "server") else {
-                return Ok(None);
-            };
-            let Some(port) = get_u16(proxy, "port") else {
-                return Ok(None);
-            };
-            Ok(parse_clash_vless(proxy, name, server, port))
-        }
-        "trojan" => {
-            let Some(server) = get_str(proxy, "server") else {
-                return Ok(None);
-            };
-            let Some(port) = get_u16(proxy, "port") else {
-                return Ok(None);
-            };
-            Ok(parse_clash_trojan(proxy, name, server, port))
-        }
-        "ss" => parse_clash_ss(proxy, name).map(Some),
-        "ssr" => parse_clash_ssr(proxy, name).map(Some),
-        "hysteria2" => {
-            let Some(server) = get_str(proxy, "server") else {
-                return Ok(None);
-            };
-            let Some(port) = get_u16(proxy, "port") else {
-                return Ok(None);
-            };
-            Ok(parse_clash_hysteria2(proxy, name, server, port))
-        }
-        "anytls" => {
-            let Some(server) = get_str(proxy, "server") else {
-                return Ok(None);
-            };
-            let Some(port) = get_u16(proxy, "port") else {
-                return Ok(None);
-            };
-            Ok(parse_clash_anytls(proxy, name, server, port))
-        }
-        _ => Ok(None),
-    }
+    Ok(())
 }
 
 fn get_str<'a>(proxy: &'a Mapping, key: &str) -> Option<&'a str> {
@@ -133,7 +399,7 @@ fn get_transport(proxy: &Mapping) -> TransportType {
     match get_str(proxy, "network").unwrap_or("tcp") {
         "ws" => TransportType::Ws,
         "grpc" => TransportType::Grpc,
-        "http" => TransportType::Http,
+        "http" | "h2" => TransportType::Http,
         _ => TransportType::Tcp,
     }
 }
@@ -247,7 +513,32 @@ fn apply_transport_fields(node: &mut ProxyNode, proxy: &Mapping) {
             node.transport_path.clear();
             node.transport_host.clear();
         }
-        TransportType::Tcp | TransportType::Http => {
+        TransportType::Http => {
+            let options = proxy.get("h2-opts").and_then(serde_yaml::Value::as_mapping);
+            let first_string = |value: &serde_yaml::Value| {
+                value
+                    .as_str()
+                    .or_else(|| {
+                        value
+                            .as_sequence()
+                            .and_then(|items| items.first())
+                            .and_then(serde_yaml::Value::as_str)
+                    })
+                    .unwrap_or("")
+                    .to_string()
+            };
+            node.transport_path = options
+                .and_then(|options| options.get("path"))
+                .map(first_string)
+                .unwrap_or_default();
+            node.transport_host = options
+                .and_then(|options| options.get("host"))
+                .map(first_string)
+                .filter(|host| !host.is_empty())
+                .unwrap_or_else(|| "www.example.com".to_string());
+            node.transport_service.clear();
+        }
+        TransportType::Tcp => {
             node.transport_path.clear();
             node.transport_host.clear();
             node.transport_service.clear();
@@ -274,7 +565,7 @@ fn parse_clash_vmess(proxy: &Mapping, name: &str, server: &str, port: u16) -> Op
         let explicit_sni = get_explicit_sni(proxy);
         node.tls_sni = if !explicit_sni.is_empty() {
             explicit_sni
-        } else if !node.transport_host.is_empty() {
+        } else if node.transport == TransportType::Ws && !node.transport_host.is_empty() {
             node.transport_host.clone()
         } else {
             server.to_string()
@@ -302,7 +593,7 @@ fn parse_clash_vless(proxy: &Mapping, name: &str, server: &str, port: u16) -> Op
         let explicit_sni = get_explicit_sni(proxy);
         node.tls_sni = if !explicit_sni.is_empty() {
             explicit_sni
-        } else if !node.transport_host.is_empty() {
+        } else if node.transport == TransportType::Ws && !node.transport_host.is_empty() {
             node.transport_host.clone()
         } else {
             server.to_string()
@@ -336,7 +627,7 @@ fn parse_clash_trojan(proxy: &Mapping, name: &str, server: &str, port: u16) -> O
         .to_string();
     node.tls_sni = if !explicit_sni.is_empty() {
         explicit_sni
-    } else if !node.transport_host.is_empty() {
+    } else if node.transport == TransportType::Ws && !node.transport_host.is_empty() {
         node.transport_host.clone()
     } else {
         server.to_string()
@@ -358,8 +649,62 @@ fn parse_clash_ss(proxy: &Mapping, name: &str) -> Result<ProxyNode, String> {
     let mut node = ProxyNode::default_with(ProxyProtocol::Shadowsocks, name, server, port);
     node.method = method.to_string();
     node.password = password.to_string();
-    node.ss_plugin = get_str(proxy, "plugin").unwrap_or("").to_string();
-    node.ss_plugin_opts = get_str(proxy, "plugin-opts").unwrap_or("").to_string();
+    let plugin = get_str(proxy, "plugin").unwrap_or("");
+    node.ss_plugin = if plugin == "obfs" {
+        "obfs-local"
+    } else {
+        plugin
+    }
+    .to_string();
+    node.ss_plugin_opts = match proxy.get("plugin-opts") {
+        None => String::new(),
+        Some(serde_yaml::Value::String(options)) => options.clone(),
+        Some(serde_yaml::Value::Mapping(options)) => {
+            if !matches!(plugin, "obfs" | "obfs-local" | "v2ray-plugin") {
+                return Err(
+                    "无法转换此 plugin 的 plugin-opts 对象，请使用 SIP003 参数字符串".to_string(),
+                );
+            }
+            let mut rendered = Vec::new();
+            for (key, value) in options {
+                let key = key
+                    .as_str()
+                    .ok_or_else(|| "plugin-opts 的键必须为字符串".to_string())?;
+                let key = if matches!(plugin, "obfs" | "obfs-local") {
+                    match key {
+                        "mode" | "obfs" => "obfs",
+                        "host" | "obfs-host" => "obfs-host",
+                        _ => return Err("obfs plugin-opts 仅支持 mode 和 host".to_string()),
+                    }
+                } else {
+                    match key {
+                        "mode" | "host" | "path" | "tls" | "mux" => key,
+                        _ => return Err("v2ray-plugin 包含无法无损转换的 plugin-opts".to_string()),
+                    }
+                };
+                match value {
+                    serde_yaml::Value::Bool(true) if matches!(key, "tls" | "mux") => {
+                        rendered.push(key.to_string())
+                    }
+                    serde_yaml::Value::Bool(false) if key == "tls" => {}
+                    serde_yaml::Value::Bool(false) if key == "mux" => {
+                        rendered.push("mux=0".to_string())
+                    }
+                    serde_yaml::Value::String(value)
+                        if !value.contains(';') && !value.contains('\n') =>
+                    {
+                        rendered.push(format!("{key}={value}"))
+                    }
+                    _ => return Err("plugin-opts 参数类型无效或包含分隔符".to_string()),
+                }
+            }
+            rendered.join(";")
+        }
+        _ => return Err("plugin-opts 必须为对象或 SIP003 参数字符串".to_string()),
+    };
+    if node.ss_plugin.is_empty() && !node.ss_plugin_opts.is_empty() {
+        return Err("存在 plugin-opts 但缺少 plugin".to_string());
+    }
     Ok(node)
 }
 
@@ -423,7 +768,7 @@ fn parse_clash_anytls(proxy: &Mapping, name: &str, server: &str, port: u16) -> O
     let explicit_sni = get_explicit_sni(proxy);
     node.tls_sni = if !explicit_sni.is_empty() {
         explicit_sni
-    } else if !node.transport_host.is_empty() {
+    } else if node.transport == TransportType::Ws && !node.transport_host.is_empty() {
         node.transport_host.clone()
     } else {
         server.to_string()
@@ -722,7 +1067,7 @@ proxies:
     }
 
     #[test]
-    fn test_parse_clash_yaml_skips_unsupported_and_incomplete_entries() {
+    fn test_parse_clash_yaml_rejects_unsupported_and_incomplete_entries() {
         let yaml = r#"
 proxies:
   - name: Unsupported
@@ -741,10 +1086,86 @@ proxies:
     password: good-pass
 "#;
 
+        let error = parse_clash_yaml(yaml).unwrap_err();
+        assert!(error.contains("第 1 个节点"));
+        assert!(error.contains("Unsupported"));
+        assert!(error.contains("type"));
+    }
+
+    #[test]
+    fn rejects_malformed_and_incomplete_nodes_with_context() {
+        for entry in [
+            "not-an-object",
+            "{name: missing-type}",
+            "{name: missing-server, type: trojan, port: 443, password: secret}",
+            "{name: missing-uuid, type: vless, server: example.com, port: 443}",
+            "{name: bad-port, type: trojan, server: example.com, port: 0, password: secret}",
+        ] {
+            let error = parse_clash_yaml(&format!("proxies:\n  - {entry}")).unwrap_err();
+            assert!(error.contains("第 1 个节点"));
+            assert!(!error.contains("secret"));
+        }
+    }
+
+    #[test]
+    fn rejects_lossy_transport_options() {
+        for option in [
+            "network: xhttp",
+            "smux: {enabled: true}",
+            "packet-encoding: xudp",
+            "dialer-proxy: upstream",
+            "ws-opts: {path: /ws, max-early-data: 2048}",
+            "ws-opts: {headers: {Custom: value}}",
+        ] {
+            let yaml = format!(
+                "proxies:\n  - name: test\n    type: vless\n    server: example.com\n    port: 443\n    uuid: 11111111-1111-1111-1111-111111111111\n    {option}"
+            );
+            assert!(parse_clash_yaml(&yaml).is_err(), "{option}");
+        }
+    }
+
+    #[test]
+    fn rejects_http_obfuscation_instead_of_changing_it_to_http2() {
+        for tls in [false, true] {
+            let yaml = format!(
+                "proxies:\n  - name: http\n    type: vless\n    server: example.com\n    port: 443\n    uuid: 11111111-1111-1111-1111-111111111111\n    tls: {tls}\n    network: http\n    http-opts:\n      path: [/stream]\n      headers:\n        Host: [cdn.example.com]"
+            );
+            let error = parse_clash_yaml(&yaml).unwrap_err();
+            assert!(error.contains("HTTP/1.1 TCP 伪装"));
+        }
+    }
+
+    #[test]
+    fn preserves_tls_h2_path_and_authority_without_changing_sni() {
+        let yaml = "proxies:\n  - name: h2\n    type: vless\n    server: example.com\n    port: 443\n    uuid: 11111111-1111-1111-1111-111111111111\n    tls: true\n    network: h2\n    h2-opts:\n      path: /stream\n      host: [cdn.example.com]";
         let nodes = parse_clash_yaml(yaml).unwrap();
-        assert_eq!(nodes.len(), 1);
-        assert_eq!(nodes[0].name, "Valid-SS");
-        assert_eq!(nodes[0].protocol, ProxyProtocol::Shadowsocks);
+        let node = &nodes[0];
+        assert_eq!(node.transport, TransportType::Http);
+        assert_eq!(node.transport_host, "cdn.example.com");
+        assert_eq!(node.tls_sni, "example.com");
+        let outbound = super::super::gen_singbox::node_to_singbox_outbound(node).unwrap();
+        assert_eq!(outbound["transport"]["host"][0], "cdn.example.com");
+        assert_eq!(outbound["transport"]["path"], "/stream");
+        assert!(
+            parse_clash_yaml(&yaml.replace("tls: true", "tls: false"))
+                .unwrap_err()
+                .contains("明文 HTTP/2")
+        );
+        assert!(
+            parse_clash_yaml(
+                &yaml.replace("[cdn.example.com]", "[cdn.example.com, other.example.com]")
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn translates_obfs_mapping_to_sip003_plugin_options() {
+        let yaml = "proxies:\n  - name: obfs\n    type: ss\n    server: example.com\n    port: 8388\n    cipher: aes-128-gcm\n    password: secret\n    plugin: obfs\n    plugin-opts:\n      mode: http\n      host: cdn.example.com";
+        let node = &parse_clash_yaml(yaml).unwrap()[0];
+        assert_eq!(node.ss_plugin, "obfs-local");
+        assert!(node.ss_plugin_opts.contains("obfs=http"));
+        assert!(node.ss_plugin_opts.contains("obfs-host=cdn.example.com"));
     }
 
     #[test]

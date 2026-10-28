@@ -17,22 +17,26 @@ pub fn render_template(template_text: &str, nodes: &[ProxyNode]) -> Result<Value
         .filter_map(|outbound| outbound.get("tag").and_then(Value::as_str))
         .map(ToString::to_string)
         .collect::<HashSet<_>>();
-    let direct_tag = outbounds
-        .iter()
-        .find(|outbound| outbound.get("type").and_then(Value::as_str) == Some("direct"))
-        .and_then(|outbound| outbound.get("tag").and_then(Value::as_str))
-        .map(ToString::to_string);
     let mut generated_outbounds = nodes
         .iter()
-        .map(gen_singbox::node_to_singbox_outbound)
+        .enumerate()
+        .map(|(index, node)| {
+            gen_singbox::node_to_singbox_outbound(node).map_err(|error| {
+                format!(
+                    "第 {} 个节点「{}」（{}）无法转换：{error}",
+                    index + 1,
+                    node.name,
+                    node.protocol.protocol_str()
+                )
+            })
+        })
         .collect::<Result<Vec<_>, _>>()?;
     let proxy_tags =
         normalize_generated_outbound_tags(&mut generated_outbounds, nodes, &mut reserved_tags);
 
     for outbound in outbounds.iter_mut() {
         if has_selector_outbounds(outbound) {
-            let filtered_tags =
-                apply_template_filter(&proxy_tags, outbound.get("filter"), direct_tag.as_deref())?;
+            let filtered_tags = apply_template_filter(&proxy_tags, outbound.get("filter"))?;
             let selector_outbounds = outbound["outbounds"]
                 .as_array_mut()
                 .expect("selector outbounds was checked as array");
@@ -113,7 +117,6 @@ fn normalized_proxy_tag(node: &ProxyNode, index: usize) -> String {
 fn apply_template_filter(
     proxy_tags: &[String],
     filter: Option<&Value>,
-    direct_tag: Option<&str>,
 ) -> Result<Vec<String>, String> {
     let Some(filter) = filter else {
         return Ok(proxy_tags.to_vec());
@@ -149,18 +152,12 @@ fn apply_template_filter(
         match action {
             "include" => filtered.retain(|tag| regex.is_match(tag)),
             "exclude" => filtered.retain(|tag| !regex.is_match(tag)),
-            _ => {}
+            _ => return Err(format!("未知模板过滤动作：{action}")),
         }
     }
 
     if filtered.is_empty() {
-        Ok(vec![
-            direct_tag
-                .ok_or_else(|| {
-                    "Template direct outbound is required for empty filter fallback".to_string()
-                })?
-                .to_string(),
-        ])
+        Ok(proxy_tags.to_vec())
     } else {
         Ok(filtered)
     }
@@ -308,7 +305,7 @@ mod tests {
     }
 
     #[test]
-    fn render_template_uses_custom_direct_tag_for_empty_filter_fallback() {
+    fn render_template_uses_all_proxies_for_empty_filter_fallback() {
         let template = r#"{
           "outbounds": [
             {"tag": "EmptyRegion", "type": "selector", "outbounds": ["{all}"], "filter": [{"action": "include", "keywords": ["Missing"]}]},
@@ -320,22 +317,21 @@ mod tests {
 
         assert_eq!(
             outbounds[0]["outbounds"].as_array().unwrap(),
-            &vec![serde_json::json!("DIRECT-OUT")]
+            &vec![serde_json::json!("HK 01")]
         );
     }
 
     #[test]
-    fn render_template_rejects_empty_filter_without_direct_outbound() {
+    fn render_template_keeps_empty_region_usable_without_direct_outbound() {
         let template = r#"{
           "outbounds": [
             {"tag": "EmptyRegion", "type": "selector", "outbounds": ["{all}"], "filter": [{"action": "include", "keywords": ["Missing"]}]}
           ]
         }"#;
-        let err = render_template(template, &[node("HK 01")]).unwrap_err();
-
+        let config = render_template(template, &[node("HK 01")]).unwrap();
         assert_eq!(
-            err,
-            "Template direct outbound is required for empty filter fallback"
+            config["outbounds"][0]["outbounds"],
+            serde_json::json!(["HK 01"])
         );
     }
 }

@@ -10,9 +10,48 @@ const ANYTLS_WS_UNSUPPORTED: &str =
 const SSR_UNSUPPORTED: &str = "ShadowsocksR is not supported for sing-box output";
 
 pub fn node_to_singbox_outbound(node: &ProxyNode) -> Result<Value, String> {
-    if matches!(node.protocol, ProxyProtocol::Anytls) && matches!(node.transport, TransportType::Ws)
+    if matches!(node.protocol, ProxyProtocol::Anytls) && node.transport != TransportType::Tcp {
+        return Err(if node.transport == TransportType::Ws {
+            ANYTLS_WS_UNSUPPORTED.to_string()
+        } else {
+            "AnyTLS 仅支持 TCP + TLS，不支持额外的 gRPC / HTTP 传输".to_string()
+        });
+    }
+    if matches!(
+        node.protocol,
+        ProxyProtocol::Hysteria2 | ProxyProtocol::Shadowsocks
+    ) && node.transport != TransportType::Tcp
     {
-        return Err(ANYTLS_WS_UNSUPPORTED.to_string());
+        return Err(format!(
+            "{} 不支持额外的 V2Ray transport",
+            node.protocol.protocol_str()
+        ));
+    }
+    if node.transport == TransportType::Grpc && !node.transport_host.is_empty() {
+        return Err("暂不支持独立的 gRPC host / authority，无法无损转换为 sing-box".to_string());
+    }
+    if node.protocol == ProxyProtocol::Vless
+        && !node.flow.is_empty()
+        && (!node.tls_enabled || node.transport != TransportType::Tcp)
+    {
+        return Err(
+            "VLESS Vision flow 必须使用 TCP + TLS / REALITY，不能用于明文或额外传输".to_string(),
+        );
+    }
+    if node.server.trim().is_empty() || node.port == 0 {
+        return Err("节点 server 不能为空，server_port 必须为 1–65535".to_string());
+    }
+    if matches!(node.protocol, ProxyProtocol::Vmess | ProxyProtocol::Vless)
+        && uuid::Uuid::parse_str(&node.uuid).is_err()
+    {
+        return Err("节点 UUID 无效，必须使用标准 UUID".to_string());
+    }
+    if matches!(
+        node.protocol,
+        ProxyProtocol::Trojan | ProxyProtocol::Hysteria2 | ProxyProtocol::Anytls
+    ) && node.password.is_empty()
+    {
+        return Err("节点缺少 password".to_string());
     }
 
     if matches!(node.protocol, ProxyProtocol::ShadowsocksR) {
@@ -85,8 +124,6 @@ pub fn generate_singbox_config(
                 "tag": "mixed-in",
                 "listen": "127.0.0.1",
                 "listen_port": 10808,
-                "sniff": true,
-                "sniff_override_destination": true,
             }
         ],
         "outbounds": all_outbounds,
@@ -105,7 +142,7 @@ pub fn generate_singbox_config(
         });
     }
 
-    let mut route_rules = vec![];
+    let mut route_rules = vec![json!({"action": "sniff"})];
     if include_dns {
         route_rules.push(json!({
             "protocol": "dns",
@@ -366,10 +403,10 @@ fn tls_json(node: &ProxyNode, force_enabled: bool) -> Option<Value> {
         "insecure": node.tls_insecure,
     });
 
-    if !node.tls_fingerprint.is_empty() {
+    if !node.tls_fingerprint.is_empty() || node.reality_enabled {
         tls["utls"] = json!({
             "enabled": true,
-            "fingerprint": node.tls_fingerprint,
+            "fingerprint": if node.tls_fingerprint.is_empty() { "chrome" } else { &node.tls_fingerprint },
         });
     }
 
@@ -458,10 +495,50 @@ mod tests {
     }
 
     #[test]
+    fn rejects_vision_without_tls_or_with_additional_transport() {
+        let mut node = node(ProxyProtocol::Vless, "vision", "example.com", 443);
+        node.uuid = "33333333-3333-3333-3333-333333333333".to_string();
+        node.flow = "xtls-rprx-vision".to_string();
+        assert!(
+            node_to_singbox_outbound(&node)
+                .unwrap_err()
+                .contains("Vision")
+        );
+        node.tls_enabled = true;
+        assert_eq!(
+            node_to_singbox_outbound(&node).unwrap()["flow"],
+            "xtls-rprx-vision"
+        );
+        for transport in [TransportType::Ws, TransportType::Http, TransportType::Grpc] {
+            node.transport = transport;
+            assert!(
+                node_to_singbox_outbound(&node)
+                    .unwrap_err()
+                    .contains("Vision")
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_independent_grpc_authority_instead_of_silently_dropping_it() {
+        let source = serde_json::json!({
+            "add":"example.com", "id":"33333333-3333-3333-3333-333333333333", "port":443,
+            "net":"grpc", "tls":"tls", "host":"authority.example.com", "sni":"tls.example.com", "path":"service"
+        });
+        use base64::{Engine as _, engine::general_purpose::STANDARD};
+        let uri = format!("vmess://{}", STANDARD.encode(source.to_string()));
+        let node = super::super::parse_vmess::parse_vmess(&uri).unwrap();
+        assert!(
+            node_to_singbox_outbound(&node)
+                .unwrap_err()
+                .contains("authority")
+        );
+    }
+
+    #[test]
     fn test_vless_outbound_preserves_reality_ws_fields_without_network() {
         let mut node = node(ProxyProtocol::Vless, "vless-node", "vless.example.com", 443);
         node.uuid = "33333333-3333-3333-3333-333333333333".to_string();
-        node.flow = "xtls-rprx-vision".to_string();
         node.transport = TransportType::Ws;
         node.transport_path = "/vless".to_string();
         node.transport_host = "cdn.vless.example.com".to_string();
@@ -475,7 +552,7 @@ mod tests {
 
         let outbound = node_to_singbox_outbound(&node).unwrap();
         assert_eq!(outbound["type"], "vless");
-        assert_eq!(outbound["flow"], "xtls-rprx-vision");
+        assert!(outbound.get("flow").is_none());
         assert_eq!(outbound["transport"]["type"], "ws");
         assert_eq!(outbound["transport"]["path"], "/vless");
         assert_eq!(
@@ -611,8 +688,9 @@ mod tests {
         assert_eq!(selector["default"], "wrap-node");
         assert_eq!(direct["type"], "direct");
         assert_eq!(config["dns"]["strategy"], "ipv4_only");
-        assert_eq!(config["route"]["rules"][0]["protocol"], "dns");
-        assert_eq!(config["route"]["rules"][1]["outbound"], "direct");
+        assert_eq!(config["route"]["rules"][0]["action"], "sniff");
+        assert_eq!(config["route"]["rules"][1]["protocol"], "dns");
+        assert_eq!(config["route"]["rules"][2]["outbound"], "direct");
         assert_eq!(config["route"]["final"], "proxy");
         assert_eq!(config["route"]["default_domain_resolver"], "local");
         assert!(outbounds.iter().all(|item| item["type"] != "urltest"));

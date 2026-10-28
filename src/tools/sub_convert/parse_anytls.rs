@@ -8,8 +8,9 @@ pub fn parse_anytls(url: &str) -> Result<ProxyNode, String> {
     let parsed = Url::parse(&format!("anytls://{raw}"))
         .map_err(|e| format!("Failed to parse anytls URL: {e}"))?;
 
-    let password = decode_component(parsed.username());
-    let server = parsed.host_str().unwrap_or("").to_string();
+    super::parser::validate_url_parameters(&parsed)?;
+    let password = super::parser::url_password(&parsed);
+    let server = super::parser::url_server(&parsed);
     let port = parsed.port().unwrap_or(443);
     let name = parsed
         .fragment()
@@ -32,11 +33,12 @@ pub fn parse_anytls(url: &str) -> Result<ProxyNode, String> {
     for (key, value) in parsed.query_pairs() {
         match key.as_ref() {
             "type" => {
-                transport = match value.as_ref() {
-                    "ws" => TransportType::Ws,
-                    _ => TransportType::Tcp,
-                };
+                transport = super::parser::parse_transport(&value)?;
             }
+            "security" if value != "tls" => {
+                return Err("AnyTLS 仅支持 TLS，无法转换此 security".to_string());
+            }
+            "pbk" | "sid" => return Err("AnyTLS 不支持 Reality 参数".to_string()),
             "host" => transport_host = value.into_owned(),
             "path" => transport_path = value.into_owned(),
             "sni" if sni.is_empty() => sni = value.into_owned(),
@@ -52,7 +54,7 @@ pub fn parse_anytls(url: &str) -> Result<ProxyNode, String> {
                     .map(ToString::to_string)
                     .collect();
             }
-            "insecure" => {
+            "insecure" | "allowInsecure" => {
                 tls_insecure = value == "1" || value.eq_ignore_ascii_case("true");
             }
             _ => {}
@@ -83,12 +85,6 @@ pub fn parse_anytls(url: &str) -> Result<ProxyNode, String> {
     }
 
     Ok(node)
-}
-
-fn decode_component(value: &str) -> String {
-    urlencoding::decode(value)
-        .map(|decoded| decoded.into_owned())
-        .unwrap_or_else(|_| value.to_string())
 }
 
 #[cfg(test)]

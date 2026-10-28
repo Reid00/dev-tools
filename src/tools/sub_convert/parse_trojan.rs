@@ -8,8 +8,9 @@ pub fn parse_trojan(url: &str) -> Result<ProxyNode, String> {
     let parsed = Url::parse(&format!("trojan://{raw}"))
         .map_err(|e| format!("Failed to parse trojan URL: {e}"))?;
 
-    let password = decode_component(parsed.username());
-    let server = parsed.host_str().unwrap_or("").to_string();
+    super::parser::validate_url_parameters(&parsed)?;
+    let password = super::parser::url_password(&parsed);
+    let server = super::parser::url_server(&parsed);
     let port = parsed.port().unwrap_or(443);
     let name = parsed
         .fragment()
@@ -32,16 +33,12 @@ pub fn parse_trojan(url: &str) -> Result<ProxyNode, String> {
     let mut security = String::from("tls");
     let mut reality_public_key = String::new();
     let mut reality_short_id = String::new();
+    let mut tls_insecure = false;
 
     for (key, value) in parsed.query_pairs() {
         match key.as_ref() {
             "type" => {
-                transport = match value.as_ref() {
-                    "ws" => TransportType::Ws,
-                    "grpc" => TransportType::Grpc,
-                    "http" => TransportType::Http,
-                    _ => TransportType::Tcp,
-                };
+                transport = super::parser::parse_transport(&value)?;
             }
             "host" => transport_host = value.into_owned(),
             "path" => transport_path = value.into_owned(),
@@ -57,7 +54,15 @@ pub fn parse_trojan(url: &str) -> Result<ProxyNode, String> {
                     .map(ToString::to_string)
                     .collect();
             }
-            "security" => security = value.into_owned(),
+            "security" => {
+                if !matches!(value.as_ref(), "tls" | "reality") {
+                    return Err("Trojan 仅支持 TLS 或 Reality，不能转换非 TLS 节点".to_string());
+                }
+                security = value.into_owned();
+            }
+            "insecure" | "allowInsecure" => {
+                tls_insecure = value == "1" || value == "true";
+            }
             "serviceName" => transport_service = value.into_owned(),
             "pbk" => reality_public_key = value.into_owned(),
             "sid" => reality_short_id = value.into_owned(),
@@ -65,6 +70,9 @@ pub fn parse_trojan(url: &str) -> Result<ProxyNode, String> {
         }
     }
 
+    if security != "reality" && (!reality_public_key.is_empty() || !reality_short_id.is_empty()) {
+        return Err("存在 Reality 参数但 security 不是 reality".to_string());
+    }
     let explicit_sni = if !sni.is_empty() { sni } else { servername };
     let tls_sni = if !explicit_sni.is_empty() {
         explicit_sni
@@ -79,6 +87,7 @@ pub fn parse_trojan(url: &str) -> Result<ProxyNode, String> {
     node.transport = transport;
     node.transport_host = transport_host;
     node.tls_enabled = true;
+    node.tls_insecure = tls_insecure;
     node.tls_sni = tls_sni;
     node.tls_fingerprint = if !fp.is_empty() { fp } else { fingerprint };
     node.tls_alpn = alpn;
@@ -101,12 +110,6 @@ pub fn parse_trojan(url: &str) -> Result<ProxyNode, String> {
     }
 
     Ok(node)
-}
-
-fn decode_component(value: &str) -> String {
-    urlencoding::decode(value)
-        .map(|decoded| decoded.into_owned())
-        .unwrap_or_else(|_| value.to_string())
 }
 
 #[cfg(test)]

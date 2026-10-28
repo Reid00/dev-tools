@@ -8,8 +8,12 @@ pub fn parse_vless(url: &str) -> Result<ProxyNode, String> {
     let parsed = Url::parse(&format!("vless://{raw}"))
         .map_err(|e| format!("Failed to parse vless URL: {e}"))?;
 
-    let uuid = parsed.username().to_string();
-    let server = parsed.host_str().unwrap_or("").to_string();
+    super::parser::validate_url_parameters(&parsed)?;
+    let uuid = decode_component(parsed.username());
+    if parsed.password().is_some() {
+        return Err("VLESS uuid 不能包含密码部分".to_string());
+    }
+    let server = super::parser::url_server(&parsed);
     let port = parsed.port().unwrap_or(443);
     let name = parsed
         .fragment()
@@ -31,16 +35,12 @@ pub fn parse_vless(url: &str) -> Result<ProxyNode, String> {
     let mut alpn = Vec::new();
     let mut reality_public_key = String::new();
     let mut reality_short_id = String::new();
+    let mut tls_insecure = false;
 
     for (key, value) in parsed.query_pairs() {
         match key.as_ref() {
             "type" => {
-                transport = match value.as_ref() {
-                    "ws" => TransportType::Ws,
-                    "grpc" => TransportType::Grpc,
-                    "http" => TransportType::Http,
-                    _ => TransportType::Tcp,
-                };
+                transport = super::parser::parse_transport(&value)?;
             }
             "security" => security = value.into_owned(),
             "host" => transport_host = value.into_owned(),
@@ -56,6 +56,9 @@ pub fn parse_vless(url: &str) -> Result<ProxyNode, String> {
                     .map(ToString::to_string)
                     .collect();
             }
+            "insecure" | "allowInsecure" => {
+                tls_insecure = value == "1" || value == "true";
+            }
             "serviceName" => transport_service = value.into_owned(),
             "pbk" => reality_public_key = value.into_owned(),
             "sid" => reality_short_id = value.into_owned(),
@@ -63,6 +66,9 @@ pub fn parse_vless(url: &str) -> Result<ProxyNode, String> {
         }
     }
 
+    if security != "reality" && (!reality_public_key.is_empty() || !reality_short_id.is_empty()) {
+        return Err("存在 Reality 参数但 security 不是 reality".to_string());
+    }
     let tls_enabled = matches!(security.as_str(), "tls" | "reality");
     let reality_enabled = security == "reality";
     let tls_sni = if tls_enabled {
@@ -83,6 +89,7 @@ pub fn parse_vless(url: &str) -> Result<ProxyNode, String> {
     node.transport = transport;
     node.transport_host = transport_host;
     node.tls_enabled = tls_enabled;
+    node.tls_insecure = tls_insecure;
     node.tls_sni = tls_sni;
     node.tls_fingerprint = fingerprint;
     node.tls_alpn = alpn;
@@ -102,6 +109,12 @@ pub fn parse_vless(url: &str) -> Result<ProxyNode, String> {
     }
 
     Ok(node)
+}
+
+fn decode_component(value: &str) -> String {
+    urlencoding::decode(value)
+        .map(|value| value.into_owned())
+        .unwrap_or_else(|_| value.to_string())
 }
 
 #[cfg(test)]

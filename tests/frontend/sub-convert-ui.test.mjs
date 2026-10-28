@@ -52,18 +52,18 @@ function extractNamedFunctionSource(html, functionName) {
   assert.fail(`Could not extract ${functionName} from static/index.html`);
 }
 
-function loadSubscriptionGlobals({ subscriptionUrl = 'https://example.com/sub', template = 'singbox' } = {}) {
+function loadSubscriptionGlobals({ subscriptionUrl = 'https://example.com/sub', template = 'singbox', sourceType = 'url', subscriptionContent = '' } = {}) {
   const html = readHtml();
   const script = ['getSubPayloadFromInputs', 'formatTemplateBadgeText']
     .map((name) => extractNamedFunctionSource(html, name))
     .join('\n\n');
 
   const elements = {
+    'sub-source-type': { value: sourceType },
+    'sub-content': { value: subscriptionContent },
     'sub-url': { value: subscriptionUrl },
     'sub-template': { value: template },
     'sub-ua': { value: 'surge' },
-    'sub-emoji': { value: '0' },
-    'sub-eps': { value: 'vless' },
   };
 
   const context = {
@@ -90,7 +90,7 @@ function loadSubscriptionGlobals({ subscriptionUrl = 'https://example.com/sub', 
   };
 }
 
-test('getSubPayloadFromInputs sends subscription url, template, file, and query params', () => {
+test('getSubPayloadFromInputs sends the unchanged subscription URL and selected User-Agent', () => {
   const { getSubPayloadFromInputs } = loadSubscriptionGlobals({
     subscriptionUrl: ' https://example.com/subscription ',
     template: '5',
@@ -101,8 +101,19 @@ test('getSubPayloadFromInputs sends subscription url, template, file, and query 
     template: '5',
     file: '5',
     ua: 'surge',
-    emoji: '0',
-    eps: 'vless',
+  });
+});
+
+test('getSubPayloadFromInputs sends only pasted content and template in content mode', () => {
+  const { getSubPayloadFromInputs } = loadSubscriptionGlobals({
+    sourceType: 'content',
+    subscriptionContent: ' trojan://secret@proxy.example.com:443#node\n ',
+    template: '1',
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(getSubPayloadFromInputs())), {
+    subscription_content: 'trojan://secret@proxy.example.com:443#node',
+    template: '1',
+    file: '1',
   });
 });
 
@@ -144,6 +155,12 @@ function createClassList(initial = []) {
     contains(name) {
       return classes.has(name);
     },
+    toggle(name, force) {
+      const enabled = force ?? !classes.has(name);
+      if (enabled) classes.add(name);
+      else classes.delete(name);
+      return enabled;
+    },
   };
 }
 
@@ -173,6 +190,7 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
     'let currentSubTemplates = [];',
     [
       'getSubPayloadFromInputs',
+      'updateSubSourceType',
       'formatTemplateBadgeText',
       'loadSubTemplates',
       'updateSubTemplateCard',
@@ -185,10 +203,13 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
   ].join('\n\n');
 
   const elements = {
+    'sub-source-type': createElement({ value: 'url' }),
+    'sub-content': createElement(),
+    'sub-content-input': createElement({ hidden: true }),
+    'sub-url-input': createElement(),
+    'sub-url-options': createElement(),
     'sub-url': createElement({ value: ' https://example.com/subscription ' }),
     'sub-ua': createElement({ value: 'clashmeta' }),
-    'sub-emoji': createElement({ value: '1' }),
-    'sub-eps': createElement({ value: 'ssr' }),
     'sub-template': createElement(),
     'sub-template-card': createElement({ hidden: true }),
     'sub-template-badge': createElement(),
@@ -202,6 +223,9 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
     'sub-output-text': createElement(),
     'sub-output-title': createElement(),
     'sub-link': createElement(),
+    'sub-link-section': createElement({ hidden: true }),
+    'sub-copy-link-btn': createElement({ hidden: true }),
+    'sub-validation': createElement({ hidden: true }),
     'sub-template-result': createElement({ hidden: true }),
     'sub-template-result-text': createElement(),
     'sub-line-numbers': createElement(),
@@ -230,7 +254,10 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
       return {
         ok: response.ok ?? true,
         status: response.status ?? 200,
-        json: async () => response.body,
+        json: async () => {
+          if (response.invalidJson) throw new SyntaxError('Unexpected token <');
+          return response.body;
+        },
       };
     },
     showToast: (message, type = 'error') => {
@@ -259,6 +286,7 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
   vm.runInContext(
     `${script}; globalThis.__loaded = {
       loadSubTemplates,
+      updateSubSourceType,
       convertSubscription,
       downloadSubJson,
       get currentSubContent() { return currentSubContent; },
@@ -271,6 +299,7 @@ function loadSubscriptionUiGlobals({ fetchResponses }) {
   const loaded = context.globalThis.__loaded;
   return {
     loadSubTemplates: loaded.loadSubTemplates,
+    updateSubSourceType: loaded.updateSubSourceType,
     convertSubscription: loaded.convertSubscription,
     downloadSubJson: loaded.downloadSubJson,
     get currentSubContent() { return loaded.currentSubContent; },
@@ -350,8 +379,6 @@ test('subscription UI loads templates, converts, then clears stale result on fai
     template: 'remote-template',
     file: 'remote-template',
     ua: 'clashmeta',
-    emoji: '1',
-    eps: 'ssr',
   });
   assert.equal(ui.currentSubContent, '{"outbounds":[{"tag":"proxy"}]}');
   assert.equal(ui.currentSubscriptionLink, 'https://tools.example/api/sub/download/abc');
@@ -430,7 +457,8 @@ test('subscription UI clears stale result when converting with an empty URL', as
   await ui.convertSubscription();
 
   assert.equal(ui.calls.length, 1);
-  assert.equal(ui.elements['sub-error'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-error'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-error'].textContent, '请输入订阅链接');
   assert.equal(ui.elements['sub-output-section'].classList.contains('hidden'), true);
   assert.equal(ui.elements['sub-proxies-section'].classList.contains('hidden'), true);
   assert.equal(ui.elements['sub-template-result'].classList.contains('hidden'), true);
@@ -439,5 +467,91 @@ test('subscription UI clears stale result when converting with an empty URL', as
   assert.equal(ui.elements['sub-output-text'].textContent, '');
   assert.equal(ui.elements['sub-link'].textContent, '');
   assert.equal(ui.elements['sub-template-result-text'].textContent, '');
-  assert.ok(ui.toastMessages.some(({ message }) => message === '请输入订阅链接'));
+  assert.equal(ui.elements['sub-validation'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-validation'].textContent, '');
+});
+
+test('subscription content mode hides URL settings and submits pasted content without publishing a link', async () => {
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [{ body: {
+    success: true,
+    format: 'singbox',
+    preview_content: '{"outbounds":[]}',
+    subscription_path: null,
+    proxies: [{ name: 'node', protocol: '<img onerror=alert(1)>', server: 'proxy.example.com', port: 443 }],
+    validation: { engine: 'sing-box', version: '1.14.4', checked: true },
+  } }] });
+  ui.elements['sub-source-type'].value = 'content';
+  ui.elements['sub-content'].value = ' trojan://secret@proxy.example.com:443#node ';
+  ui.elements['sub-template'].value = '1';
+  ui.updateSubSourceType();
+  assert.equal(ui.elements['sub-url-input'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-url-options'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-content-input'].classList.contains('hidden'), false);
+  await ui.convertSubscription();
+  assert.deepEqual(JSON.parse(ui.calls[0].options.body), {
+    subscription_content: 'trojan://secret@proxy.example.com:443#node', template: '1', file: '1',
+  });
+  assert.equal(ui.currentSubscriptionLink, '');
+  assert.equal(ui.elements['sub-link-section'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-copy-link-btn'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-output-section'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-validation'].classList.contains('hidden'), false);
+  assert.match(ui.elements['sub-validation'].textContent, /sing-box 1\.14\.4 内核配置校验通过/);
+  assert.match(ui.elements['sub-validation'].textContent, /配置校验通过不代表节点连通/);
+  assert.match(ui.elements['sub-proxies-list'].innerHTML, /&lt;img onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(ui.elements['sub-proxies-list'].innerHTML, /<img/);
+  ui.downloadSubJson();
+  assert.equal(ui.downloads[0].content, '{"outbounds":[]}');
+  ui.elements['sub-source-type'].value = 'url';
+  ui.updateSubSourceType();
+  assert.equal(ui.elements['sub-url-input'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-url-options'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-content-input'].classList.contains('hidden'), true);
+  assert.equal(ui.currentSubContent, '');
+});
+
+test('empty pasted content shows a persistent error without making a request', async () => {
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [] });
+  ui.elements['sub-source-type'].value = 'content';
+  ui.elements['sub-content'].value = ' \n ';
+  await ui.convertSubscription();
+  assert.equal(ui.calls.length, 0);
+  assert.equal(ui.elements['sub-error'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-error'].textContent, '请粘贴原始订阅内容');
+});
+
+test('non-JSON HTTP errors are shown persistently and clear the previous successful result', async () => {
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [
+    { body: { success: true, format: 'singbox', preview_content: '{}', subscription_path: '/api/sub/config/abc', validation: { version: '1.14.4', checked: true } } },
+    { ok: false, status: 502, invalidJson: true },
+  ] });
+  await ui.convertSubscription();
+  assert.equal(ui.elements['sub-copy-link-btn'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-link-section'].classList.contains('hidden'), false);
+  await ui.convertSubscription();
+  assert.equal(ui.currentSubContent, '');
+  assert.equal(ui.currentSubscriptionLink, '');
+  assert.equal(ui.elements['sub-output-section'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-validation'].classList.contains('hidden'), true);
+  assert.equal(ui.elements['sub-error'].classList.contains('hidden'), false);
+  assert.match(ui.elements['sub-error'].textContent, /非 JSON 响应（HTTP 502）/);
+  assert.equal(ui.elements['sub-convert-btn'].disabled, false);
+});
+
+test('JSON HTTP errors preserve backend explanations including unavailable validation engines', async () => {
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [{ ok: false, status: 503, body: { success: false, error: '未找到 sing-box 内核，请设置 SING_BOX_BINARY' } }] });
+  await ui.convertSubscription();
+  assert.equal(ui.elements['sub-error'].textContent, '未找到 sing-box 内核，请设置 SING_BOX_BINARY');
+  assert.equal(ui.elements['sub-error'].classList.contains('hidden'), false);
+  assert.equal(ui.elements['sub-output-section'].classList.contains('hidden'), true);
+});
+
+test('template loading chooses the recommended template before the first indexed template', async () => {
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [{ body: [
+    { name: 'Other', index: 1, reference_key: 'other', source: 'builtin' },
+    { name: 'Recommended', index: 2, reference_key: 'recommended', source: 'builtin', recommended: true, sing_box_version: '1.14.x' },
+  ] }] });
+  await ui.loadSubTemplates();
+  assert.equal(ui.elements['sub-template'].value, '2');
+  assert.match(ui.elements['sub-template-badge'].textContent, /sing-box 1\.14\.x/);
 });

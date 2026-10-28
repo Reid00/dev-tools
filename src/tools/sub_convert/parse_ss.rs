@@ -15,8 +15,12 @@ pub fn parse_ss(url: &str) -> Result<ProxyNode, String> {
     let parsed =
         Url::parse(&format!("ss://{raw}")).map_err(|e| format!("Failed to parse ss URL: {e}"))?;
 
-    let server = parsed.host_str().unwrap_or("").to_string();
-    let port = parsed.port().unwrap_or(8388);
+    super::parser::validate_url_parameters(&parsed)?;
+    let server = super::parser::url_server(&parsed);
+    let port = parsed
+        .port()
+        .filter(|port| *port > 0)
+        .ok_or_else(|| "SS port 必须在 1–65535 之间".to_string())?;
     let name = decode_fragment(parsed.fragment(), "ss");
     let (method, password) = if let Some(password) = parsed.password() {
         (
@@ -27,6 +31,12 @@ pub fn parse_ss(url: &str) -> Result<ProxyNode, String> {
         let userinfo = base64_decode(parsed.username())?;
         split_method_password(&userinfo)?
     };
+    if parsed
+        .query_pairs()
+        .any(|(key, _)| matches!(key.as_ref(), "type" | "security" | "host" | "path" | "sni"))
+    {
+        return Err("SS 不支持额外传输或 TLS 参数；请使用 plugin".to_string());
+    }
     let (plugin, plugin_opts) = parsed
         .query_pairs()
         .find(|(key, _)| key == "plugin")
@@ -76,7 +86,13 @@ fn split_server_port(value: &str) -> Result<(String, u16), String> {
         .rsplit_once(':')
         .ok_or_else(|| "Invalid ss server format".to_string())?;
     let port = port.parse().map_err(|_| "Invalid ss port".to_string())?;
-    Ok((server.to_string(), port))
+    Ok((
+        server
+            .trim_start_matches('[')
+            .trim_end_matches(']')
+            .to_string(),
+        port,
+    ))
 }
 
 fn decode_component(value: &str) -> String {

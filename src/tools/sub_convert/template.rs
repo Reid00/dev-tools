@@ -6,7 +6,6 @@ use serde::Serialize;
 #[serde(rename_all = "snake_case")]
 pub enum TemplateSource {
     Builtin,
-    Remote,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -17,6 +16,8 @@ pub struct TemplateDescriptor {
     pub reference_key: &'static str,
     pub index: Option<usize>,
     pub source: TemplateSource,
+    pub recommended: bool,
+    pub sing_box_version: &'static str,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,48 +29,16 @@ pub struct ResolvedTemplate {
 }
 
 pub fn builtin_templates() -> Vec<TemplateDescriptor> {
-    vec![
-        TemplateDescriptor {
-            id: "config_template_groups_rule_set_tun",
-            name: "config_template_groups_rule_set_tun",
-            description: "Builtin sing-box reference template.",
-            reference_key: "config_template_groups_rule_set_tun",
-            index: Some(1),
-            source: TemplateSource::Builtin,
-        },
-        TemplateDescriptor {
-            id: "config_template_groups_rule_set_tun_fakeip",
-            name: "config_template_groups_rule_set_tun_fakeip",
-            description: "Builtin sing-box reference template.",
-            reference_key: "config_template_groups_rule_set_tun_fakeip",
-            index: Some(2),
-            source: TemplateSource::Builtin,
-        },
-        TemplateDescriptor {
-            id: "config_template_no_groups_tun_vn",
-            name: "config_template_no_groups_tun_vn",
-            description: "Builtin sing-box reference template.",
-            reference_key: "config_template_no_groups_tun_VN",
-            index: Some(3),
-            source: TemplateSource::Builtin,
-        },
-        TemplateDescriptor {
-            id: "sb-config-1.12",
-            name: "sb-config-1.12",
-            description: "Builtin sing-box reference template.",
-            reference_key: "sb-config-1.12",
-            index: Some(4),
-            source: TemplateSource::Builtin,
-        },
-        TemplateDescriptor {
-            id: "sb-config-1.14",
-            name: "sb-config-1.14",
-            description: "Builtin sing-box reference template.",
-            reference_key: "sb-config-1.14",
-            index: Some(5),
-            source: TemplateSource::Builtin,
-        },
-    ]
+    [
+        ("config_template_groups_rule_set_tun", "轻量代理（推荐）", "sing-box 1.14.x · HTTP / SOCKS 127.0.0.1:2080 · 自动测速与手动选择，无需管理员权限或远程规则。", "config_template_groups_rule_set_tun"),
+        ("config_template_groups_rule_set_tun_fakeip", "TUN 全局代理 · FakeIP", "sing-box 1.14.x · 接管系统流量并启用 FakeIP，需要管理员权限；局域网直连。", "config_template_groups_rule_set_tun_fakeip"),
+        ("config_template_no_groups_tun_vn", "TUN 全局代理 · 精简", "sing-box 1.14.x · 接管系统流量，手动选择节点，需要管理员权限；不启用 FakeIP。", "config_template_no_groups_tun_VN"),
+        ("sb-config-1.12", "轻量代理 · 地区分组", "sing-box 1.14.x · 127.0.0.1:2080 · 按节点名称分组；空地区组回退到自动测速，不会静默直连。", "sb-config-1.12"),
+        ("sb-config-1.14", "TUN 全局代理 · 地区分组", "sing-box 1.14.x · 接管系统流量、按地区选择节点，需要管理员权限；不依赖远程规则。", "sb-config-1.14"),
+    ].into_iter().enumerate().map(|(index, (id, name, description, reference_key))| TemplateDescriptor {
+        id, name, description, reference_key, index: Some(index + 1), source: TemplateSource::Builtin,
+        recommended: index == 0, sing_box_version: "1.14.x",
+    }).collect()
 }
 
 pub fn builtin_template_content(id: &str) -> Option<&'static str> {
@@ -78,7 +47,7 @@ pub fn builtin_template_content(id: &str) -> Option<&'static str> {
             "templates/config_template_groups_rule_set_tun.json"
         )),
         "config_template_groups_rule_set_tun_fakeip" => Some(include_str!(
-            "templates/config_template_groups_rule_set_tun_fakeip.json",
+            "templates/config_template_groups_rule_set_tun_fakeip.json"
         )),
         "config_template_no_groups_tun_vn" => Some(include_str!(
             "templates/config_template_no_groups_tun_VN.json"
@@ -104,23 +73,11 @@ pub fn resolve_template(
         .filter(|value| !value.is_empty())
         .or_else(|| file.map(str::trim).filter(|value| !value.is_empty()))
         .unwrap_or("1");
-
     if is_remote_template_value(requested) {
-        return Ok(ResolvedTemplate {
-            descriptor: TemplateDescriptor {
-                id: "remote-template",
-                name: "Remote Template",
-                description: "Remote JSON template referenced by URL.",
-                reference_key: "file",
-                index: None,
-                source: TemplateSource::Remote,
-            },
-            content_type: TemplateSource::Remote,
-            reference_value: requested.to_string(),
-            content: Cow::Owned(String::new()),
-        });
+        return Err(
+            "不再接受远程模板：为避免在服务器执行不可信配置，请使用经过校验的内置模板".to_string(),
+        );
     }
-
     let descriptor = if let Ok(index) = requested.parse::<usize>() {
         builtin_templates()
             .into_iter()
@@ -130,11 +87,9 @@ pub fn resolve_template(
             template.id.eq_ignore_ascii_case(requested) || template.reference_key == requested
         })
     }
-    .ok_or_else(|| format!("Unknown template: {requested}"))?;
-
+    .ok_or_else(|| format!("未知模板：{requested}，请重新选择内置模板"))?;
     let content = builtin_template_content(descriptor.id)
-        .ok_or_else(|| format!("Missing builtin template content for {}", descriptor.id))?;
-
+        .ok_or_else(|| format!("内置模板缺失：{}", descriptor.id))?;
     Ok(ResolvedTemplate {
         descriptor,
         content_type: TemplateSource::Builtin,
@@ -144,18 +99,7 @@ pub fn resolve_template(
 }
 
 pub async fn load_template_text(template: &ResolvedTemplate) -> Result<String, String> {
-    match template.content_type {
-        TemplateSource::Builtin => Ok(template.content.as_ref().to_string()),
-        TemplateSource::Remote => {
-            super::runtime::fetch_remote_text(
-                &template.reference_value,
-                "sing-box-template/1.0",
-                "remote template",
-                512 * 1024,
-            )
-            .await
-        }
-    }
+    Ok(template.content.as_ref().to_string())
 }
 
 #[cfg(test)]
@@ -163,75 +107,48 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_templates_are_sorted_and_expose_reference_keys() {
+    fn templates_have_clear_version_and_one_recommendation() {
         let templates = builtin_templates();
-        let ids = templates
-            .iter()
-            .map(|template| template.id)
-            .collect::<Vec<_>>();
-
+        assert_eq!(templates.len(), 5);
         assert_eq!(
-            ids,
-            vec![
-                "config_template_groups_rule_set_tun",
-                "config_template_groups_rule_set_tun_fakeip",
-                "config_template_no_groups_tun_vn",
-                "sb-config-1.12",
-                "sb-config-1.14",
-            ]
+            templates
+                .iter()
+                .filter(|template| template.recommended)
+                .count(),
+            1
         );
-        assert_eq!(
-            templates[0].reference_key,
-            "config_template_groups_rule_set_tun"
-        );
-        assert_eq!(templates[0].index, Some(1));
-        assert_eq!(templates[4].reference_key, "sb-config-1.14");
-        assert_eq!(templates[4].index, Some(5));
-    }
-
-    #[test]
-    fn resolve_template_accepts_builtin_id_and_reference_key() {
-        let by_id = resolve_template(Some("sb-config-1.14"), Some("sb-config-1.14")).unwrap();
-        assert_eq!(by_id.descriptor.id, "sb-config-1.14");
-        assert_eq!(by_id.content_type, TemplateSource::Builtin);
-
-        let by_reference =
-            resolve_template(None, Some("config_template_no_groups_tun_VN")).unwrap();
-        assert_eq!(
-            by_reference.descriptor.id,
-            "config_template_no_groups_tun_vn"
+        for descriptor in templates {
+            assert_eq!(descriptor.sing_box_version, "1.14.x");
+            assert!(descriptor.description.contains("1.14.x"));
+            let by_index =
+                resolve_template(None, Some(&descriptor.index.unwrap().to_string())).unwrap();
+            assert_eq!(by_index.descriptor.id, descriptor.id);
+            let by_name = resolve_template(Some(descriptor.reference_key), None).unwrap();
+            assert_eq!(by_name.descriptor.id, descriptor.id);
+            serde_json::from_str::<serde_json::Value>(by_name.content.as_ref()).unwrap();
+        }
+        let default = resolve_template(None, None).unwrap();
+        let config: serde_json::Value = serde_json::from_str(default.content.as_ref()).unwrap();
+        assert!(
+            config["inbounds"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|inbound| inbound["type"] == "mixed")
         );
     }
 
     #[test]
-    fn resolve_template_accepts_numeric_file_index() {
-        let resolved = resolve_template(None, Some("5")).unwrap();
-        assert_eq!(resolved.descriptor.id, "sb-config-1.14");
-    }
-
-    #[test]
-    fn resolve_template_marks_remote_template_urls() {
-        let resolved = resolve_template(None, Some("https://example.com/template.json")).unwrap();
-        assert_eq!(resolved.descriptor.id, "remote-template");
-        assert_eq!(resolved.content_type, TemplateSource::Remote);
-        assert_eq!(
-            resolved.reference_value,
-            "https://example.com/template.json"
+    fn rejects_unknown_and_remote_templates() {
+        assert!(
+            resolve_template(None, Some("missing-template"))
+                .unwrap_err()
+                .contains("未知模板")
         );
-    }
-
-    #[test]
-    fn resolve_template_rejects_unknown_values() {
-        let err = resolve_template(None, Some("missing-template")).unwrap_err();
-        assert_eq!(err, "Unknown template: missing-template");
-    }
-
-    #[tokio::test]
-    async fn load_template_text_rejects_private_remote_template_urls() {
-        let resolved = resolve_template(None, Some("http://127.0.0.1/template.json")).unwrap();
-
-        let err = load_template_text(&resolved).await.unwrap_err();
-
-        assert!(err.contains("Private IP"));
+        assert!(
+            resolve_template(None, Some("https://example.com/template.json"))
+                .unwrap_err()
+                .contains("不再接受远程模板")
+        );
     }
 }

@@ -17,10 +17,11 @@ pub mod runtime;
 pub mod source;
 pub mod template;
 pub mod types;
+pub mod validate;
 
 use axum::{
     Json, Router,
-    extract::{OriginalUri, Path},
+    extract::{DefaultBodyLimit, Query, rejection::JsonRejection},
     http::{HeaderMap, HeaderValue, StatusCode, header},
     response::IntoResponse,
     routing::{get, post},
@@ -33,19 +34,52 @@ use serde::{Deserialize, Serialize};
 const JSON_CONTENT_TYPE: &str = "application/json; charset=utf-8";
 const JSON_CODE_CLASS: &str = "language-json";
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 pub struct ConvertRequest {
+    #[serde(default)]
     pub subscription_url: String,
+    #[serde(default)]
+    pub subscription_content: String,
     #[serde(default)]
     pub template: Option<String>,
     #[serde(default)]
     pub file: Option<String>,
     #[serde(default)]
     pub ua: Option<String>,
-    #[serde(default)]
-    pub emoji: Option<String>,
-    #[serde(default)]
-    pub eps: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ConfigQuery {
+    source: String,
+    template: Option<String>,
+    ua: Option<String>,
+}
+
+struct ConversionError {
+    status: StatusCode,
+    message: String,
+}
+
+impl From<String> for ConversionError {
+    fn from(message: String) -> Self {
+        Self {
+            status: StatusCode::UNPROCESSABLE_ENTITY,
+            message,
+        }
+    }
+}
+
+impl From<validate::ValidationError> for ConversionError {
+    fn from(error: validate::ValidationError) -> Self {
+        Self {
+            status: if error.unavailable {
+                StatusCode::SERVICE_UNAVAILABLE
+            } else {
+                StatusCode::UNPROCESSABLE_ENTITY
+            },
+            message: error.message,
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -68,6 +102,7 @@ pub struct ConvertResponse {
     pub proxies: Vec<ProxyInfo>,
     pub outbounds_count: usize,
     pub template_info: Option<TemplateInfoResponse>,
+    pub validation: Option<validate::ValidationInfo>,
     pub error: Option<String>,
 }
 
@@ -75,107 +110,141 @@ pub async fn list_templates() -> Json<Vec<template::TemplateDescriptor>> {
     Json(template::builtin_templates())
 }
 
-async fn convert_subscription(Json(req): Json<ConvertRequest>) -> Json<ConvertResponse> {
-    tracing::info!(request_body = ?req, "subscription convert request");
-
+async fn convert_subscription(
+    payload: Result<Json<ConvertRequest>, JsonRejection>,
+) -> impl IntoResponse {
+    let req = match payload {
+        Ok(Json(req)) => req,
+        Err(error) => return (error.status(), Json(error_response(
+            "请求体必须是有效 JSON，subscription_url / subscription_content、template 和 ua 必须为字符串".to_string()
+        ))),
+    };
     match convert_subscription_inner(req).await {
-        Ok(response) => Json(response),
-        Err(error) => Json(error_response(error)),
+        Ok(response) => (StatusCode::OK, Json(response)),
+        Err(error) => (error.status, Json(error_response(error.message))),
     }
 }
 
-async fn convert_subscription_inner(req: ConvertRequest) -> Result<ConvertResponse, String> {
-    let query_params = publish::ReferenceQueryParams::new(
-        req.ua.as_deref(),
-        req.emoji.as_deref(),
-        req.eps.as_deref(),
-    );
-    let subscription_url = source::validate_subscription_input(&req.subscription_url)?;
-    let subscription_url = publish::append_reference_query_params(&subscription_url, &query_params);
-    tracing::info!(subscription_url = %subscription_url, "subscription convert source link");
-
+async fn convert_subscription_inner(
+    req: ConvertRequest,
+) -> Result<ConvertResponse, ConversionError> {
+    let url_input = req.subscription_url.trim();
+    let content_input = req.subscription_content.trim();
+    if url_input.is_empty() == content_input.is_empty() {
+        return Err("请提供 subscription_url（订阅链接）或 subscription_content（原始内容），且只能提供其中一个".to_string().into());
+    }
+    if content_input.len() > 2 * 1024 * 1024 {
+        return Err("订阅内容超过 2 MiB，请缩小订阅后重试".to_string().into());
+    }
     let resolved_template =
         template::resolve_template(req.template.as_deref(), req.file.as_deref())?;
-    let template_text = template::load_template_text(&resolved_template).await?;
-    let source_content =
-        runtime::fetch_subscription_with_user_agent(&subscription_url, &query_params.ua).await?;
+    let user_agent = req
+        .ua
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("clashmeta");
+    if user_agent.len() > 256 || HeaderValue::from_str(user_agent).is_err() {
+        return Err("UA 请求头无效：请使用不含换行的客户端名称（最多 256 字符）"
+            .to_string()
+            .into());
+    }
+    let subscription_url = if url_input.is_empty() {
+        None
+    } else {
+        Some(source::validate_subscription_input(url_input)?)
+    };
+    let source_content = match subscription_url.as_deref() {
+        Some(url) => runtime::fetch_subscription_with_user_agent(url, user_agent).await?,
+        None => content_input.to_string(),
+    };
     let nodes = parser::parse_subscription_content(&source_content)?;
     if nodes.is_empty() {
-        return Err("No valid proxy URLs found".to_string());
+        return Err("订阅中没有可转换的节点".to_string().into());
     }
-
+    if nodes.len() > 2000 {
+        return Err("订阅节点超过 2000 个，请拆分订阅后重试".to_string().into());
+    }
+    let template_text = template::load_template_text(&resolved_template).await?;
     let rendered = render::render_template(&template_text, &nodes)?;
+    let validation = validate::check_config(&rendered).await?;
     let preview_content = serde_json::to_string_pretty(&rendered)
-        .map_err(|error| format!("Failed to serialize rendered config: {error}"))?;
-    let outbounds_count = rendered["outbounds"]
-        .as_array()
-        .map(|outbounds| outbounds.len())
-        .unwrap_or(0);
-    let proxies = proxy_info_from_nodes(&nodes);
-    let template_info = template_info_response(&resolved_template);
-    let subscription_path = publish::build_config_path(
-        &subscription_url,
-        &template_file_value(&resolved_template),
-        &query_params,
-    );
-    tracing::info!(subscription_path = %subscription_path, "subscription convert generated link");
-
+        .map_err(|_| "无法序列化 sing-box 配置".to_string())?;
+    let outbounds_count = rendered["outbounds"].as_array().map_or(0, Vec::len);
+    let mut proxies = proxy_info_from_nodes(&nodes);
+    if let Some(outbounds) = rendered["outbounds"].as_array() {
+        for (proxy, outbound) in proxies
+            .iter_mut()
+            .zip(outbounds.iter().rev().take(nodes.len()).rev())
+        {
+            proxy.name = outbound["tag"].as_str().unwrap_or(&proxy.name).to_string();
+        }
+    }
+    let subscription_path = subscription_url.as_deref().map(|url| {
+        publish::build_config_path(url, &template_file_value(&resolved_template), user_agent)
+    });
     Ok(ConvertResponse {
         success: true,
-        subscription_path: Some(subscription_path),
+        subscription_path,
         preview_content: Some(preview_content),
         content_type: Some(JSON_CONTENT_TYPE.to_string()),
         code_class: Some(JSON_CODE_CLASS.to_string()),
         format: Some(TargetFormat::Singbox.as_str().to_string()),
         proxies,
         outbounds_count,
-        template_info: Some(template_info),
+        template_info: Some(template_info_response(&resolved_template)),
+        validation: Some(validation),
         error: None,
     })
 }
 
 async fn config(
-    Path(raw_source): Path<String>,
-    OriginalUri(uri): OriginalUri,
-) -> impl IntoResponse {
-    match config_inner(raw_source, uri.query()).await {
-        Ok(body) => {
+    query: Result<Query<ConfigQuery>, axum::extract::rejection::QueryRejection>,
+) -> axum::response::Response {
+    let Query(query) = match query {
+        Ok(query) => query,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(error_response(
+                    "订阅链接参数无效，必须包含 source".to_string(),
+                )),
+            )
+                .into_response();
+        }
+    };
+    let response = convert_subscription_inner(ConvertRequest {
+        subscription_url: query.source,
+        subscription_content: String::new(),
+        template: query.template,
+        file: None,
+        ua: query.ua,
+    })
+    .await;
+    let mut response = match response {
+        Ok(result) => {
             let mut headers = HeaderMap::new();
             headers.insert(
                 header::CONTENT_TYPE,
                 HeaderValue::from_static(JSON_CONTENT_TYPE),
             );
-            (StatusCode::OK, headers, body).into_response()
+            (
+                StatusCode::OK,
+                headers,
+                result.preview_content.unwrap_or_default(),
+            )
+                .into_response()
         }
-        Err(error) => (StatusCode::BAD_REQUEST, error).into_response(),
-    }
-}
-
-async fn config_inner(raw_source: String, query: Option<&str>) -> Result<String, String> {
-    let raw_source = match query {
-        Some(query) if !query.is_empty() => format!("{raw_source}?{query}"),
-        _ => raw_source,
+        Err(error) => (error.status, Json(error_response(error.message))).into_response(),
     };
-    let parsed_source = source::split_config_source_and_query(&raw_source)?;
-    tracing::info!(request_link = %raw_source, "subscription config request link");
-
-    let query_params = publish::reference_query_params_from_url(&parsed_source.subscription_url);
-    let subscription_url =
-        publish::append_reference_query_params(&parsed_source.subscription_url, &query_params);
-    tracing::info!(subscription_url = %subscription_url, "subscription config source link");
-
-    let resolved_template = template::resolve_template(None, parsed_source.file.as_deref())?;
-    let template_text = template::load_template_text(&resolved_template).await?;
-    let source_content =
-        runtime::fetch_subscription_with_user_agent(&subscription_url, &query_params.ua).await?;
-    let nodes = parser::parse_subscription_content(&source_content)?;
-    if nodes.is_empty() {
-        return Err("No valid proxy URLs found".to_string());
-    }
-
-    let rendered = render::render_template(&template_text, &nodes)?;
-    serde_json::to_string_pretty(&rendered)
-        .map_err(|error| format!("Failed to serialize rendered config: {error}"))
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response.headers_mut().insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("no-referrer"),
+    );
+    response
 }
 
 fn proxy_info_from_nodes(nodes: &[types::ProxyNode]) -> Vec<ProxyInfo> {
@@ -196,11 +265,7 @@ fn template_info_response(resolved_template: &template::ResolvedTemplate) -> Tem
         name: resolved_template.descriptor.name.to_string(),
         description: resolved_template.descriptor.description.to_string(),
         reference_value: template_file_value(resolved_template),
-        source: match resolved_template.content_type {
-            template::TemplateSource::Builtin => "builtin",
-            template::TemplateSource::Remote => "remote",
-        }
-        .to_string(),
+        source: "builtin".to_string(),
     }
 }
 
@@ -223,6 +288,7 @@ fn error_response(error: String) -> ConvertResponse {
         proxies: Vec::new(),
         outbounds_count: 0,
         template_info: None,
+        validation: None,
         error: Some(error),
     }
 }
@@ -231,7 +297,8 @@ pub fn router() -> Router {
     Router::new()
         .route("/templates", get(list_templates))
         .route("/convert", post(convert_subscription))
-        .route("/config/{*source}", get(config))
+        .route("/config", get(config))
+        .layer(DefaultBodyLimit::max(4 * 1024 * 1024))
 }
 
 #[cfg(test)]
@@ -318,11 +385,69 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_config_route_with_url_and_file_is_registered() {
-        let (status, body, _) = get_route("/config/https://example.com/sub?token=abc&file=5").await;
+    async fn test_convert_rejects_ambiguous_and_malformed_requests() {
+        for request in [
+            serde_json::json!({"subscription_url":"https://example.com/sub", "subscription_content":"trojan://secret@example.com:443"}),
+            serde_json::json!({"subscription_content":123}),
+            serde_json::json!({"subscription_content":"trojan://secret@example.com:443", "ua":"bad\r\nheader"}),
+        ] {
+            let (status, response) = post_convert(request).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert_eq!(response["success"], false);
+            assert!(
+                response["error"]
+                    .as_str()
+                    .is_some_and(|error| !error.is_empty())
+            );
+            assert!(response["preview_content"].is_null());
+        }
+    }
 
-        assert_ne!(status, StatusCode::NOT_FOUND);
-        assert!(body.contains("HTTP error") || body.contains("Failed to fetch subscription"));
+    #[tokio::test]
+    async fn test_convert_preserves_node_error_context_and_never_returns_partial_output() {
+        for (content, expected) in [
+            (
+                "trojan://secret@example.com:443#Good\ntuic://secret@example.com:443#Bad",
+                "第 2 行",
+            ),
+            ("vless://bad-uuid@example.com:443#Bad", "UUID"),
+            ("anytls://secret@example.com:443?type=grpc#Bad", "AnyTLS"),
+            (
+                "proxies:\n  - name: Bad\n    type: trojan\n    server: example.com\n    port: 443",
+                "password",
+            ),
+            ("{\"outbounds\":[]}", "JSON"),
+        ] {
+            let (status, response) =
+                post_convert(serde_json::json!({"subscription_content":content})).await;
+            assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert!(
+                response["error"].as_str().unwrap().contains(expected),
+                "{response}"
+            );
+            assert!(response["preview_content"].is_null());
+            assert!(response["proxies"].as_array().unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_config_rejects_missing_source_as_json() {
+        let (status, body, content_type) = get_route("/config?template=1").await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(content_type.unwrap().starts_with("application/json"));
+        let error: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert!(error["error"].as_str().unwrap().contains("source"));
+    }
+
+    #[tokio::test]
+    async fn test_config_route_returns_json_error_without_fetching_private_source() {
+        let (status, body, content_type) =
+            get_route("/config?source=http%3A%2F%2F127.0.0.1%2Fsub&template=1").await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(content_type.unwrap().starts_with("application/json"));
+        let error: serde_json::Value = serde_json::from_str(&body).unwrap();
+        assert_eq!(error["success"], false);
+        assert!(error["error"].as_str().unwrap().contains("Private IP"));
     }
 
     const SAMPLE_SUB: &str = "vmess://eyJ2IjoiMiIsInBzIjoiVGVzdC1WbWVzcyIsImFkZCI6ImV4YW1wbGUuY29tIiwicG9ydCI6IjQ0MyIsImlkIjoiNzQwNjYwYjktYmQxMi00NWE2LTk2MGYtNmI0N2RkNGNiZTY2IiwiYWlkIjoiMCIsIm5ldCI6IndzIiwidHlwZSI6Im5vbmUiLCJob3N0IjoiZXhhbXBsZS5jb20iLCJwYXRoIjoiLyIsInRscyI6InRscyJ9";
@@ -1013,7 +1138,7 @@ proxies:
         });
 
         let (status, json) = post_convert(body).await;
-        assert_eq!(status, StatusCode::OK);
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(json["success"], false);
         assert!(
             json["error"].as_str().unwrap().contains("Private IP")

@@ -10,10 +10,15 @@ pub fn parse_vmess(url: &str) -> Result<ProxyNode, String> {
 
     let json_str = base64_decode(encoded)?;
     let vmess: HashMap<String, Value> =
-        serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse vmess JSON: {e}"))?;
+        serde_json::from_str(&json_str).map_err(|_| "VMess JSON 格式错误".to_string())?;
 
-    let server = get_string(&vmess, "add", "");
-    let port = get_u16(&vmess, "port").unwrap_or(443);
+    let server = get_string(&vmess, "add", "")
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_string();
+    let port = get_u16(&vmess, "port")
+        .filter(|port| *port > 0)
+        .ok_or_else(|| "VMess port 必须在 1–65535 之间".to_string())?;
     let uuid = get_string(&vmess, "id", "");
     let net = get_string(&vmess, "net", "tcp");
     let name = get_string(&vmess, "ps", "vmess");
@@ -21,21 +26,54 @@ pub fn parse_vmess(url: &str) -> Result<ProxyNode, String> {
     let method = get_string(&vmess, "scy", "");
     let transport_host = get_string(&vmess, "host", "");
     let path = get_string(&vmess, "path", "");
+    if path.contains("?ed=") || path.contains("&ed=") {
+        return Err("暂不支持通过 VMess path 声明 WebSocket early data，无法无损转换".to_string());
+    }
     let sni = get_string(&vmess, "sni", "");
-    let alter_id = get_u32(&vmess, "aid").unwrap_or(0);
-
-    let transport = match net.as_str() {
-        "ws" => TransportType::Ws,
-        "grpc" => TransportType::Grpc,
-        "http" => TransportType::Http,
-        _ => TransportType::Tcp,
+    let alter_id = if vmess.contains_key("aid") {
+        get_u32(&vmess, "aid").ok_or_else(|| "VMess aid 必须为非负整数".to_string())?
+    } else {
+        0
     };
-
+    let transport = super::parser::parse_transport(&net)?;
+    if !matches!(tls.as_str(), "" | "none" | "tls") {
+        return Err("VMess tls 仅支持空值、none 或 tls".to_string());
+    }
+    if transport == TransportType::Tcp
+        && !matches!(get_string(&vmess, "type", "none").as_str(), "" | "none")
+    {
+        return Err("不支持 VMess TCP header 伪装，无法无损转换".to_string());
+    }
+    if transport == TransportType::Grpc
+        && !matches!(
+            get_string(&vmess, "type", "none").as_str(),
+            "" | "none" | "gun"
+        )
+    {
+        return Err("不支持此 VMess gRPC 模式（如 multi），无法无损转换".to_string());
+    }
+    for key in [
+        "packetEncoding",
+        "packet-encoding",
+        "mux",
+        "smux",
+        "reality",
+        "pbk",
+        "pcs",
+        "vcn",
+    ] {
+        if vmess
+            .get(key)
+            .is_some_and(|value| !value.is_null() && value != "" && value != false)
+        {
+            return Err(format!("不支持 VMess 参数 {key}，无法无损转换"));
+        }
+    }
     let tls_enabled = tls == "tls";
     let tls_sni = if tls_enabled {
         if !sni.is_empty() {
             sni
-        } else if transport_host.is_empty() {
+        } else if transport != TransportType::Ws || transport_host.is_empty() {
             server.clone()
         } else {
             transport_host.clone()
@@ -52,6 +90,38 @@ pub fn parse_vmess(url: &str) -> Result<ProxyNode, String> {
     node.transport_host = transport_host;
     node.tls_enabled = tls_enabled;
     node.tls_sni = tls_sni;
+    node.tls_fingerprint = get_string(&vmess, "fp", "");
+    node.tls_alpn = match vmess.get("alpn") {
+        Some(Value::Array(values)) => values
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(ToString::to_string)
+                    .ok_or_else(|| "VMess alpn 必须为字符串或字符串数组".to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?,
+        Some(Value::String(value)) => value
+            .split(',')
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string)
+            .collect(),
+        None => Vec::new(),
+        _ => return Err("VMess alpn 必须为字符串或字符串数组".to_string()),
+    };
+    for key in ["insecure", "allowInsecure"] {
+        if let Some(value) = vmess.get(key) {
+            node.tls_insecure = match value {
+                Value::Bool(value) => *value,
+                Value::Number(value) if value.as_u64() == Some(1) => true,
+                Value::Number(value) if value.as_u64() == Some(0) => false,
+                Value::String(value) if value == "1" || value == "true" => true,
+                Value::String(value) if value == "0" || value == "false" => false,
+                _ => return Err(format!("VMess {key} 必须为布尔值")),
+            };
+        }
+    }
 
     match node.transport {
         TransportType::Grpc => {
@@ -117,6 +187,39 @@ mod tests {
     }
 
     #[test]
+    fn rejects_invalid_port_alter_id_and_unknown_transport() {
+        for payload in [
+            json!({"add":"example.com","id":"uuid"}),
+            json!({"add":"example.com","id":"uuid","port":"invalid"}),
+            json!({"add":"example.com","id":"uuid","port":65536}),
+            json!({"add":"example.com","id":"uuid","port":443,"aid":"invalid"}),
+            json!({"add":"example.com","id":"uuid","port":443,"net":"quic"}),
+            json!({"add":"example.com","id":"uuid","port":443,"net":"tcp","type":"http"}),
+            json!({"add":"example.com","id":"uuid","port":443,"net":"grpc","type":"multi"}),
+        ] {
+            assert!(parse_vmess(&vmess_url(payload)).is_err());
+        }
+    }
+
+    #[test]
+    fn rejects_pinned_certificate_fields_instead_of_weakening_verification() {
+        for key in ["pcs", "vcn"] {
+            let mut payload =
+                json!({"add":"example.com", "id":"uuid", "port":443, "tls":"tls", "insecure":"1"});
+            payload[key] = json!("certificate-verification");
+            assert!(parse_vmess(&vmess_url(payload)).unwrap_err().contains(key));
+        }
+    }
+
+    #[test]
+    fn preserves_fingerprint_alpn_and_insecure() {
+        let node = parse_vmess(&vmess_url(json!({"add":"example.com","id":"uuid","port":443,"tls":"tls","fp":"chrome","alpn":["h2","http/1.1"],"allowInsecure":true}))).unwrap();
+        assert_eq!(node.tls_fingerprint, "chrome");
+        assert_eq!(node.tls_alpn, vec!["h2", "http/1.1"]);
+        assert!(node.tls_insecure);
+    }
+
+    #[test]
     fn test_parse_vmess_ws_tls() {
         let url = vmess_url(json!({
             "add": "ws.example.com",
@@ -179,7 +282,7 @@ mod tests {
         assert_eq!(node.transport, TransportType::Grpc);
         assert_eq!(node.transport_service, "grpc-service");
         assert_eq!(node.transport_path, "");
-        assert_eq!(node.tls_sni, "grpc-host.example.com");
+        assert_eq!(node.tls_sni, "grpc.example.com");
     }
 
     #[test]
