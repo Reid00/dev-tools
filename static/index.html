@@ -3392,6 +3392,9 @@ ${preview.innerHTML}
             validation.textContent = data.validation?.checked
                 ? `sing-box ${data.validation.version} 内核配置校验通过。已检查服务引用；此检查不启动 Android VPN，也不测试节点连通或远程规则下载。`
                 : '未提供内核校验结果，请勿将此配置视为已验证。';
+            if (Array.isArray(data.warnings) && data.warnings.length) {
+                validation.textContent += ` ${data.warnings.join(' ')}`;
+            }
             validation.className = data.validation?.checked
                 ? 'mb-4 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg text-sm text-emerald-800'
                 : 'mb-4 px-3 py-2 bg-amber-50 border border-amber-100 rounded-lg text-sm text-amber-800';

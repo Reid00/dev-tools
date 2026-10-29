@@ -4,6 +4,53 @@ use std::collections::HashSet;
 
 use super::{gen_singbox, types::ProxyNode};
 
+pub fn apply_proxy_dns(
+    config: &mut Value,
+    proxy_dns: super::parse_clash::ProxyDns,
+) -> Result<(), String> {
+    let bootstrap = config["route"]["default_domain_resolver"].clone();
+    if bootstrap.is_null() {
+        return Err("模板缺少节点 DNS 所需的引导解析器".to_string());
+    }
+    let servers = config["dns"]["servers"]
+        .as_array_mut()
+        .ok_or("模板 dns.servers 必须为数组")?;
+    let mut tag = "proxy-dns".to_string();
+    let mut suffix = 2;
+    while servers.iter().any(|server| server["tag"] == tag) {
+        tag = format!("proxy-dns-{suffix}");
+        suffix += 1;
+    }
+    let mut server = proxy_dns.server;
+    server["tag"] = json!(tag);
+    if server["server"]
+        .as_str()
+        .is_some_and(|host| host.parse::<std::net::IpAddr>().is_err())
+    {
+        server["domain_resolver"] = bootstrap.clone();
+    }
+    servers.push(server);
+    for outbound in config["outbounds"]
+        .as_array_mut()
+        .ok_or("模板 outbounds 必须为数组")?
+    {
+        if outbound["type"] == "direct" && outbound.get("domain_resolver").is_none() {
+            outbound["domain_resolver"] = bootstrap.clone();
+        }
+    }
+    for client in config["http_clients"].as_array_mut().into_iter().flatten() {
+        if client.get("domain_resolver").is_none() {
+            client["domain_resolver"] = bootstrap.clone();
+        }
+    }
+    config["route"]["default_domain_resolver"] = if proxy_dns.ipv4_only {
+        json!({"server":tag,"strategy":"ipv4_only"})
+    } else {
+        json!(tag)
+    };
+    Ok(())
+}
+
 pub fn render_template(template_text: &str, nodes: &[ProxyNode]) -> Result<Value, String> {
     let mut template: Value = serde_json::from_str(template_text)
         .map_err(|error| format!("Failed to parse template JSON: {error}"))?;
@@ -174,6 +221,64 @@ mod tests {
         node.tls_enabled = true;
         node.tls_sni = "example.com".to_string();
         node
+    }
+
+    #[test]
+    fn dedicated_dns_keeps_template_routes_and_direct_bootstrap_unchanged() {
+        for descriptor in super::super::template::builtin_templates() {
+            let text = super::super::template::builtin_template_content(descriptor.id).unwrap();
+            let mut config: Value = serde_json::from_str(text).unwrap();
+            let original = config.clone();
+            apply_proxy_dns(&mut config, super::super::parse_clash::ProxyDns {
+                server: json!({"type":"https","server":"resolver.example.com","path":"/private/dns"}),
+                ipv4_only: true,
+                alternative_count: 0,
+            }).unwrap();
+            let dns = config["dns"]["servers"].as_array().unwrap().last().unwrap();
+            assert_eq!(dns["tag"], "proxy-dns");
+            assert_eq!(dns["domain_resolver"], "local");
+            assert!(dns.get("detour").is_none());
+            assert!(dns.get("tls").is_none());
+            assert_eq!(
+                config["route"]["default_domain_resolver"],
+                json!({"server":"proxy-dns","strategy":"ipv4_only"})
+            );
+            for outbound in config["outbounds"].as_array().unwrap() {
+                if outbound["type"] == "direct" {
+                    assert_eq!(outbound["domain_resolver"], "local");
+                }
+            }
+            for section in ["rules", "final", "strategy", "reverse_mapping"] {
+                assert_eq!(config["dns"][section], original["dns"][section]);
+            }
+            for section in ["rules", "rule_set", "final", "auto_detect_interface"] {
+                assert_eq!(config["route"][section], original["route"][section]);
+            }
+            assert_eq!(config["inbounds"], original["inbounds"]);
+            let rendered = render_template(&config.to_string(), &[node("test")]).unwrap();
+            super::super::validate::validate_references(&rendered).unwrap();
+        }
+    }
+
+    #[test]
+    fn proxy_dns_tag_collisions_and_ip_resolvers_are_handled() {
+        let mut config = json!({
+            "dns":{"servers":[{"type":"udp","tag":"proxy-dns","server":"223.5.5.5"}]},
+            "outbounds":[{"type":"direct","tag":"direct","domain_resolver":"proxy-dns"}],
+            "route":{"default_domain_resolver":"proxy-dns"}
+        });
+        apply_proxy_dns(
+            &mut config,
+            super::super::parse_clash::ProxyDns {
+                server: json!({"type":"udp","server":"1.1.1.1"}),
+                ipv4_only: false,
+                alternative_count: 0,
+            },
+        )
+        .unwrap();
+        assert_eq!(config["route"]["default_domain_resolver"], "proxy-dns-2");
+        assert!(config["dns"]["servers"][1].get("domain_resolver").is_none());
+        assert_eq!(config["outbounds"][0]["domain_resolver"], "proxy-dns");
     }
 
     #[test]

@@ -547,6 +547,19 @@ test('subscription content mode hides URL settings and submits pasted content wi
   assert.equal(ui.currentSubContent, '');
 });
 
+test('conversion shows the dedicated DNS limitation as plain text', async () => {
+  const warning = '仅保留首选节点专用 DNS；未启用备用切换 <img src=x onerror=alert(1)>';
+  const ui = loadSubscriptionUiGlobals({ fetchResponses: [{ body: {
+    success: true, format: 'singbox', preview_content: '{}',
+    validation: { version: '1.14.4', checked: true }, warnings: [warning],
+  } }] });
+  ui.elements['sub-url'].value = 'https://example.com/sub';
+  await ui.convertSubscription();
+  assert.match(ui.elements['sub-validation'].textContent, /仅保留首选节点专用 DNS/);
+  assert.equal(ui.elements['sub-validation'].textContent.endsWith(warning), true);
+  assert.doesNotMatch(ui.elements['sub-validation'].innerHTML || '', /<img/);
+});
+
 test('filtered conversion displays escaped diagnostics and retains backend update link', async () => {
   const ui = loadSubscriptionUiGlobals({ fetchResponses: [{ body: {
     success: true,

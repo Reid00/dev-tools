@@ -125,6 +125,7 @@ pub struct ConvertResponse {
     pub template_info: Option<TemplateInfoResponse>,
     pub validation: Option<validate::ValidationInfo>,
     pub skipped_nodes: Vec<parser::SkippedNode>,
+    pub warnings: Vec<String>,
     pub error: Option<String>,
 }
 
@@ -195,17 +196,34 @@ async fn convert_subscription_with(
         Some(url) => fetch(url, user_agent).await?,
         None => content_input.to_string(),
     };
-    let entries = parser::parse_subscription_entries(&source_content)?;
-    if entries.len() > 2000 {
+    let subscription = parser::parse_subscription(&source_content)?;
+    if subscription.nodes.len() > 2000 {
         return Err("订阅节点超过 2000 个，请拆分订阅后重试".to_string().into());
     }
-    let template_text = template::load_template_text(&resolved_template).await?;
+    let mut template_text = template::load_template_text(&resolved_template).await?;
+    let mut warnings = Vec::new();
+    if let Some(proxy_dns) = subscription.proxy_dns {
+        warnings.push("已保留原订阅的首选节点专用 DNS，仅用于节点域名解析。".to_string());
+        if proxy_dns.alternative_count > 0 {
+            warnings.push(format!("sing-box 不支持等价的多上游节点解析器组，未启用其余 {} 个备用 DNS 的并发查询或自动切换。", proxy_dns.alternative_count));
+        }
+        let mut config: serde_json::Value = serde_json::from_str(&template_text)
+            .map_err(|_| "内置模板不是有效 JSON".to_string())?;
+        render::apply_proxy_dns(&mut config, proxy_dns)?;
+        template_text = config.to_string();
+    }
     let ValidatedNodes {
         config: rendered,
         validation,
         nodes,
         skipped_nodes,
-    } = convert_nodes(&template_text, entries, req.skip_unsupported, check).await?;
+    } = convert_nodes(
+        &template_text,
+        subscription.nodes,
+        req.skip_unsupported,
+        check,
+    )
+    .await?;
     let preview_content = serde_json::to_string_pretty(&rendered)
         .map_err(|_| "无法序列化 sing-box 配置".to_string())?;
     let outbounds_count = rendered["outbounds"].as_array().map_or(0, Vec::len);
@@ -238,6 +256,7 @@ async fn convert_subscription_with(
         template_info: Some(template_info_response(&resolved_template)),
         validation: Some(validation),
         skipped_nodes,
+        warnings,
         error: None,
     })
 }
@@ -457,6 +476,7 @@ fn error_response(error: String) -> ConvertResponse {
         template_info: None,
         validation: None,
         skipped_nodes: Vec::new(),
+        warnings: Vec::new(),
         error: Some(error),
     }
 }
@@ -562,6 +582,80 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn preview_and_refresh_preserve_private_proxy_dns_through_filtering() {
+        let source = "dns:\n  ipv6: false\n  proxy-server-nameserver: [https://resolver.example.com/private/dns?key=test-key, https://backup.example.com/dns]\nproxies:\n  - {name: Good, type: anytls, server: node.example.com, port: 17107, password: secret}\n  - {name: Bad, type: tuic}";
+        for descriptor in template::builtin_templates() {
+            let response = convert_subscription_with(
+                ConvertRequest {
+                    subscription_url: "https://example.com/sub".to_string(),
+                    subscription_content: String::new(),
+                    template: Some(descriptor.id.to_string()),
+                    file: None,
+                    ua: None,
+                    skip_unsupported: true,
+                },
+                async |_, _| Ok(source.to_string()),
+                async |config| {
+                    validate::validate_references(config).unwrap();
+                    assert_eq!(
+                        config["route"]["default_domain_resolver"]["server"],
+                        "proxy-dns"
+                    );
+                    assert_eq!(
+                        config["dns"]["servers"].as_array().unwrap().last().unwrap()["path"],
+                        "/private/dns?key=test-key"
+                    );
+                    valid_test_config(config).await
+                },
+            )
+            .await
+            .unwrap_or_else(|error| panic!("{}", error.message));
+            assert_eq!(response.skipped_nodes.len(), 1);
+            assert!(
+                response
+                    .warnings
+                    .iter()
+                    .any(|warning| warning.contains("1 个备用 DNS"))
+            );
+            assert!(!response.warnings.join(" ").contains("test-key"));
+            let path = response.subscription_path.unwrap();
+            let query = Query::try_from_uri(&path.parse().unwrap()).unwrap();
+            let remote = config_with(
+                Ok(query),
+                async |_, _| Ok(source.replace("/private/dns", "/updated/dns")),
+                valid_test_config,
+            )
+            .await;
+            assert_eq!(remote.status(), StatusCode::OK);
+            let bytes = remote.into_body().collect().await.unwrap().to_bytes();
+            let config: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+            let servers = config["dns"]["servers"].as_array().unwrap();
+            assert_eq!(servers.last().unwrap()["path"], "/updated/dns?key=test-key");
+            assert_eq!(
+                config["route"]["default_domain_resolver"]["strategy"],
+                "ipv4_only"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_proxy_dns_cannot_be_skipped_as_an_unsupported_node() {
+        for skip in [false, true] {
+            let result = convert_subscription_with(
+                ConvertRequest {
+                    subscription_url: String::new(),
+                    subscription_content: "dns:\n  proxy-server-nameserver: [https://resolver.example.com/private-key#proxy]\nproxies:\n  - {name: Good, type: anytls, server: node.example.com, port: 443, password: secret}".to_string(),
+                    template: None, file: None, ua: None, skip_unsupported: skip,
+                },
+                async |_, _| panic!("pasted subscriptions must not be fetched"),
+                async |_| panic!("invalid proxy DNS must not reach validation"),
+            ).await.err().unwrap();
+            assert_eq!(result.status, StatusCode::UNPROCESSABLE_ENTITY);
+            assert!(!result.message.contains("private-key"));
+        }
+    }
+
+    #[tokio::test]
     async fn published_link_never_returns_a_config_when_validation_fails() {
         let response = config_with(
             Ok(Query(ConfigQuery {
@@ -602,7 +696,7 @@ mod tests {
             template::builtin_template_content("config_template_groups_rule_set_tun").unwrap();
         let strict = convert_nodes(
             template,
-            parser::parse_subscription_entries(content).unwrap(),
+            parser::parse_subscription(content).unwrap().nodes,
             false,
             valid_test_config,
         )
@@ -612,7 +706,7 @@ mod tests {
         assert!(strict.message.contains("第 3 行"));
         let result = convert_nodes(
             template,
-            parser::parse_subscription_entries(content).unwrap(),
+            parser::parse_subscription(content).unwrap().nodes,
             true,
             valid_test_config,
         )
@@ -643,7 +737,7 @@ mod tests {
             template::builtin_template_content("config_template_groups_rule_set_tun").unwrap();
         let result = convert_nodes(
             template,
-            parser::parse_subscription_entries(source).unwrap(),
+            parser::parse_subscription(source).unwrap().nodes,
             true,
             valid_test_config,
         )
@@ -676,7 +770,7 @@ mod tests {
         let checks = std::sync::atomic::AtomicUsize::new(0);
         let result = convert_nodes(
             template,
-            parser::parse_subscription_entries(source).unwrap(),
+            parser::parse_subscription(source).unwrap().nodes,
             true,
             async |config: &serde_json::Value| {
                 checks.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -719,7 +813,7 @@ mod tests {
         ] {
             let error = convert_nodes(
                 template,
-                parser::parse_subscription_entries(source).unwrap(),
+                parser::parse_subscription(source).unwrap().nodes,
                 true,
                 async |_: &serde_json::Value| {
                     Err(validate::ValidationError {

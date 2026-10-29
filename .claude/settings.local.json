@@ -123,7 +123,11 @@
       "mcp__plugin_playwright_playwright__browser_close",
       "Agent",
       "Bash(/private/tmp/sing-box-1.14.4-darwin-arm64/sing-box version *)",
-      "Bash(ruby *)"
+      "Bash(ruby *)",
+      "Bash(gh api *)",
+      "Bash(lsof -nP -iTCP:2080 -sTCP:LISTEN)",
+      "Bash(route -n get default)",
+      "Bash(lsof -nP -iTCP -sTCP:LISTEN)"
     ]
   }
 }

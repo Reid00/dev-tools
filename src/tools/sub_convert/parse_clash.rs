@@ -1,15 +1,24 @@
 use super::types::{ProxyNode, ProxyProtocol, TransportType};
 use serde_yaml::Mapping;
 
+pub struct ProxyDns {
+    pub server: serde_json::Value,
+    pub ipv4_only: bool,
+    pub alternative_count: usize,
+}
+
 #[cfg(test)]
 pub fn parse_clash_yaml(content: &str) -> Result<Vec<ProxyNode>, String> {
-    parse_clash_entries(content)?
+    parse_clash_subscription(content)?
+        .nodes
         .into_iter()
         .map(|entry| entry.result)
         .collect()
 }
 
-pub(crate) fn parse_clash_entries(content: &str) -> Result<Vec<super::parser::ParsedNode>, String> {
+pub(crate) fn parse_clash_subscription(
+    content: &str,
+) -> Result<super::parser::ParsedSubscription, String> {
     let yaml: serde_yaml::Value = serde_yaml::from_str(content).map_err(|error| {
         let location = error
             .location()
@@ -27,7 +36,8 @@ pub(crate) fn parse_clash_entries(content: &str) -> Result<Vec<super::parser::Pa
     if proxies.is_empty() {
         return Err("Clash proxies 数组为空，没有可转换的节点".to_string());
     }
-    Ok(proxies
+    let proxy_dns = parse_proxy_dns(&yaml)?;
+    let nodes = proxies
         .iter()
         .enumerate()
         .map(|(index, value)| {
@@ -48,7 +58,121 @@ pub(crate) fn parse_clash_entries(content: &str) -> Result<Vec<super::parser::Pa
                 result,
             }
         })
-        .collect())
+        .collect();
+    Ok(super::parser::ParsedSubscription { nodes, proxy_dns })
+}
+
+fn parse_proxy_dns(yaml: &serde_yaml::Value) -> Result<Option<ProxyDns>, String> {
+    let Some(dns) = yaml.get("dns") else {
+        return Ok(None);
+    };
+    if dns.get("enable").and_then(serde_yaml::Value::as_bool) == Some(false) {
+        return Ok(None);
+    }
+    let Some(resolvers) = dns.get("proxy-server-nameserver") else {
+        return Ok(None);
+    };
+    let resolvers = resolvers
+        .as_sequence()
+        .ok_or("Clash dns.proxy-server-nameserver 必须为数组")?;
+    if resolvers.is_empty() {
+        return Ok(None);
+    }
+    if dns
+        .get("proxy-server-nameserver-policy")
+        .is_some_and(|policy| {
+            !policy.is_null() && policy.as_mapping().is_none_or(|map| !map.is_empty())
+        })
+    {
+        return Err(
+            "暂不支持 Clash dns.proxy-server-nameserver-policy，无法保留节点域名解析策略"
+                .to_string(),
+        );
+    }
+    let servers = resolvers
+        .iter()
+        .enumerate()
+        .map(|(index, resolver)| {
+            resolver
+                .as_str()
+                .ok_or_else(|| format!("Clash dns.proxy-server-nameserver 第 {} 项必须为字符串", index + 1))
+                .and_then(|resolver| {
+                    proxy_dns_server(resolver).map_err(|_| format!(
+                        "Clash dns.proxy-server-nameserver 第 {} 项无法转换：仅支持 IP、UDP、TCP、TLS 或 HTTPS DNS，不支持认证、代理后缀或自定义参数",
+                        index + 1
+                    ))
+                })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    // A single explicit resolver avoids deprecated implicit DNS routing in sing-box.
+    Ok(Some(ProxyDns {
+        alternative_count: servers.len() - 1,
+        server: servers.into_iter().next().unwrap(),
+        ipv4_only: dns.get("ipv6").and_then(serde_yaml::Value::as_bool) == Some(false),
+    }))
+}
+
+fn proxy_dns_server(value: &str) -> Result<serde_json::Value, ()> {
+    use serde_json::json;
+    use std::net::{IpAddr, SocketAddr};
+
+    if let Ok(address) = value.parse::<IpAddr>() {
+        return Ok(json!({"type":"udp", "server":address.to_string()}));
+    }
+    if let Ok(address) = value.parse::<SocketAddr>() {
+        if address.port() == 0 {
+            return Err(());
+        }
+        return Ok(
+            json!({"type":"udp", "server":address.ip().to_string(), "server_port":address.port()}),
+        );
+    }
+    let url = reqwest::Url::parse(value).map_err(|_| ())?;
+    let server_type = match url.scheme() {
+        "https" => "https",
+        "tls" => "tls",
+        "tcp" => "tcp",
+        "udp" => "udp",
+        _ => return Err(()),
+    };
+    if !url.username().is_empty() || url.password().is_some() || url.fragment().is_some() {
+        return Err(());
+    }
+    if server_type != "https" && (url.query().is_some() || !matches!(url.path(), "" | "/")) {
+        return Err(());
+    }
+    if url.port() == Some(0) {
+        return Err(());
+    }
+    let host = url
+        .host_str()
+        .ok_or(())?
+        .trim_start_matches('[')
+        .trim_end_matches(']');
+    if host.is_empty()
+        || host
+            .chars()
+            .any(|c| c.is_whitespace() || c == '%' || c == '#')
+    {
+        return Err(());
+    }
+    let mut server = json!({"type":server_type,"server":host});
+    if let Some(port) = url.port() {
+        server["server_port"] = json!(port);
+    }
+    if server_type == "https" {
+        let mut path = if url.path().is_empty() {
+            "/dns-query".to_string()
+        } else {
+            url.path().to_string()
+        };
+        if let Some(query) = url.query() {
+            path.push('?');
+            path.push_str(query);
+        }
+        server["path"] = json!(path);
+    }
+    Ok(server)
 }
 
 fn clash_proxy_to_node(proxy: &Mapping) -> Result<ProxyNode, String> {
@@ -834,6 +958,90 @@ mod tests {
         assert!(parse_clash_yaml(&wrong_network).is_err());
         let bad_headers = yaml.replace("Host: cdn.example.com", "Custom: value");
         assert!(parse_clash_yaml(&bad_headers).is_err());
+    }
+
+    #[test]
+    fn preserves_private_proxy_dns_path_query_port_and_ipv4_preference() {
+        let source = r#"
+dns:
+  enable: true
+  ipv6: false
+  proxy-server-nameserver:
+    - https://resolver.example.com:8443/private/account/dns?key=private-key
+    - tls://1.1.1.1:853
+proxies:
+  - {name: node, type: anytls, server: node.example.com, port: 443, password: secret}
+"#;
+        let subscription = super::parse_clash_subscription(source).unwrap();
+        let dns = subscription.proxy_dns.unwrap();
+        assert_eq!(
+            dns.server,
+            serde_json::json!({
+                "type":"https", "server":"resolver.example.com", "server_port":8443,
+                "path":"/private/account/dns?key=private-key"
+            })
+        );
+        assert!(dns.ipv4_only);
+        assert_eq!(dns.alternative_count, 1);
+        assert_eq!(subscription.nodes.len(), 1);
+    }
+
+    #[test]
+    fn converts_proxy_dns_transports_without_changing_https_paths() {
+        use serde_json::json;
+        for (input, expected) in [
+            ("223.5.5.5", json!({"type":"udp","server":"223.5.5.5"})),
+            (
+                "[2001:db8::1]:5353",
+                json!({"type":"udp","server":"2001:db8::1","server_port":5353}),
+            ),
+            (
+                "tcp://127.0.0.1:5353",
+                json!({"type":"tcp","server":"127.0.0.1","server_port":5353}),
+            ),
+            (
+                "tls://resolver.example.com:853",
+                json!({"type":"tls","server":"resolver.example.com","server_port":853}),
+            ),
+            (
+                "https://resolver.example.com/",
+                json!({"type":"https","server":"resolver.example.com","path":"/"}),
+            ),
+        ] {
+            assert_eq!(super::proxy_dns_server(input).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn rejects_lossy_proxy_dns_without_exposing_credential_urls() {
+        for resolver in [
+            "https://resolver.example.com/private-key#proxy",
+            "https://user:private-key@resolver.example.com/dns",
+            "tls://resolver.example.com/private-key",
+            "https://resolver.example.com:0/private-key",
+            "quic://resolver.example.com/private-key",
+        ] {
+            let source = format!(
+                "dns:\n  proxy-server-nameserver: ['{resolver}']\nproxies:\n  - {{name: node, type: trojan, server: example.com, port: 443, password: secret}}"
+            );
+            let error = super::parse_clash_subscription(&source).err().unwrap();
+            assert!(error.contains("proxy-server-nameserver 第 1 项"));
+            assert!(!error.contains("private-key"));
+        }
+    }
+
+    #[test]
+    fn rejects_proxy_dns_policy_instead_of_silently_ignoring_it() {
+        let source = "dns:\n  proxy-server-nameserver: [223.5.5.5]\n  proxy-server-nameserver-policy: {'+.example.com': 1.1.1.1}\nproxies:\n  - {name: node, type: trojan, server: example.com, port: 443, password: secret}";
+        let error = super::parse_clash_subscription(source).err().unwrap();
+        assert!(error.contains("proxy-server-nameserver-policy"));
+        let disabled = source.replace("dns:\n", "dns:\n  enable: false\n");
+        assert!(
+            super::parse_clash_subscription(&disabled)
+                .unwrap()
+                .proxy_dns
+                .is_none()
+        );
     }
 
     #[test]

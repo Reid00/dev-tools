@@ -41,6 +41,11 @@ pub struct ParsedNode {
     pub result: Result<ProxyNode, String>,
 }
 
+pub struct ParsedSubscription {
+    pub nodes: Vec<ParsedNode>,
+    pub proxy_dns: Option<parse_clash::ProxyDns>,
+}
+
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct SkippedNode {
     pub index: usize,
@@ -50,13 +55,14 @@ pub struct SkippedNode {
 
 #[cfg(test)]
 pub fn parse_subscription_content(content: &str) -> Result<Vec<ProxyNode>, String> {
-    parse_subscription_entries(content)?
+    parse_subscription(content)?
+        .nodes
         .into_iter()
         .map(|entry| entry.result)
         .collect()
 }
 
-pub fn parse_subscription_entries(content: &str) -> Result<Vec<ParsedNode>, String> {
+pub fn parse_subscription(content: &str) -> Result<ParsedSubscription, String> {
     let trimmed = content.trim().trim_start_matches('\u{feff}').trim();
     if trimmed.is_empty() {
         return Err("订阅内容为空，请检查订阅是否过期或链接是否正确".to_string());
@@ -76,7 +82,7 @@ pub fn parse_subscription_entries(content: &str) -> Result<Vec<ParsedNode>, Stri
         );
     }
     if looks_like_clash_yaml(trimmed) {
-        return parse_clash::parse_clash_entries(trimmed);
+        return parse_clash::parse_clash_subscription(trimmed);
     }
     if trimmed.contains("://") || trimmed.starts_with('#') {
         return parse_proxy_lines(trimmed);
@@ -89,7 +95,7 @@ pub fn parse_subscription_entries(content: &str) -> Result<Vec<ParsedNode>, Stri
         return Err("Base64 解码后的订阅内容为空".to_string());
     }
     if looks_like_clash_yaml(decoded) {
-        return parse_clash::parse_clash_entries(decoded);
+        return parse_clash::parse_clash_subscription(decoded);
     }
     if decoded.starts_with('<') {
         return Err("Base64 解码后的订阅是 HTML 页面，不包含节点数据".to_string());
@@ -97,7 +103,7 @@ pub fn parse_subscription_entries(content: &str) -> Result<Vec<ParsedNode>, Stri
     parse_proxy_lines(decoded)
 }
 
-fn parse_proxy_lines(content: &str) -> Result<Vec<ParsedNode>, String> {
+fn parse_proxy_lines(content: &str) -> Result<ParsedSubscription, String> {
     let mut nodes = Vec::new();
     for (index, line) in content.lines().enumerate() {
         let line = line.trim();
@@ -137,7 +143,10 @@ fn parse_proxy_lines(content: &str) -> Result<Vec<ParsedNode>, String> {
     if nodes.is_empty() {
         return Err("订阅中没有节点；空行和注释不会被转换".to_string());
     }
-    Ok(nodes)
+    Ok(ParsedSubscription {
+        nodes,
+        proxy_dns: None,
+    })
 }
 
 pub(crate) fn validate_required_fields(node: &ProxyNode) -> Result<(), String> {
@@ -457,6 +466,22 @@ mod tests {
         ] {
             assert!(parse_subscription_content(url).is_err());
         }
+    }
+
+    #[test]
+    fn raw_and_base64_clash_keep_proxy_dns_metadata() {
+        let source = "dns:\n  proxy-server-nameserver: [https://resolver.example.com/private/dns]\nproxies:\n  - {name: node, type: trojan, server: example.com, port: 443, password: secret}";
+        for input in [source.to_string(), STANDARD.encode(source)] {
+            let parsed = super::parse_subscription(&input).unwrap();
+            assert_eq!(parsed.nodes.len(), 1);
+            assert_eq!(parsed.proxy_dns.unwrap().server["path"], "/private/dns");
+        }
+        assert!(
+            super::parse_subscription("trojan://secret@example.com:443")
+                .unwrap()
+                .proxy_dns
+                .is_none()
+        );
     }
 
     #[test]

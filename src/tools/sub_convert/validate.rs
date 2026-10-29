@@ -126,7 +126,7 @@ fn redact_diagnostic(message: &str, config: &Value) -> String {
         match value {
             Value::Object(map) => {
                 for (key, value) in map {
-                    if matches!(
+                    if (matches!(
                         key.as_str(),
                         "password"
                             | "uuid"
@@ -135,7 +135,9 @@ fn redact_diagnostic(message: &str, config: &Value) -> String {
                             | "secret"
                             | "url"
                             | "token"
-                    ) && let Some(value) = value.as_str().filter(|v| !v.is_empty())
+                    ) || key == "path"
+                        && map.get("type").and_then(Value::as_str) == Some("https"))
+                        && let Some(value) = value.as_str().filter(|v| !v.is_empty())
                     {
                         found.push(value.to_string());
                     }
@@ -575,6 +577,13 @@ mod tests {
     }
 
     #[test]
+    fn redacts_private_doh_paths_from_native_diagnostics() {
+        let config = json!({"dns":{"servers":[{"type":"https","server":"dns.example.com","path":"/private/account?key=private-key"}]}});
+        let diagnostic = redact_diagnostic("failed: /private/account?key=private-key", &config);
+        assert_eq!(diagnostic, "failed: [已隐藏]");
+    }
+
+    #[test]
     fn rejects_server_file_access_but_allows_transport_paths() {
         assert!(
             reject_local_resources(&json!({"tls":{"certificate_path":"/etc/passwd"}})).is_err()
@@ -650,7 +659,14 @@ mod tests {
             )
             .unwrap();
             let text = super::super::template::builtin_template_content(template.id).unwrap();
-            let mut config = super::super::render::render_template(text, &nodes).unwrap();
+            let mut base: Value = serde_json::from_str(text).unwrap();
+            super::super::render::apply_proxy_dns(&mut base, super::super::parse_clash::ProxyDns {
+                server: json!({"type":"https","server":"resolver.example.com","path":"/private/dns"}),
+                ipv4_only: true,
+                alternative_count: 0,
+            }).unwrap();
+            let mut config =
+                super::super::render::render_template(&base.to_string(), &nodes).unwrap();
             // Keep DNS/detours intact while excluding host routing, disk and external network effects.
             config["inbounds"] = json!([]);
             config["route"]["auto_detect_interface"] = json!(false);
@@ -715,6 +731,18 @@ mod tests {
                 let result = check_config(&config).await.unwrap_or_else(|err| {
                     panic!("{} / {}: {}", nodes[0].name, template.id, err.message)
                 });
+                assert!(result.checked);
+                let mut base: Value = serde_json::from_str(text).unwrap();
+                super::super::render::apply_proxy_dns(&mut base, super::super::parse_clash::ProxyDns {
+                    server: json!({"type":"https","server":"resolver.example.com","path":"/private/dns"}),
+                    ipv4_only: true,
+                    alternative_count: 0,
+                }).unwrap();
+                let config =
+                    super::super::render::render_template(&base.to_string(), &nodes).unwrap();
+                let result = check_config(&config)
+                    .await
+                    .unwrap_or_else(|err| panic!("{} / private DNS: {}", template.id, err.message));
                 assert!(result.checked);
             }
         }
